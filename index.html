@@ -111,6 +111,7 @@
       border-color: #f2b33a;
       box-shadow: inset 0 0 0 1px #f2b33a;
     }
+    .wep-pick.locked { opacity: 0.4; cursor: not-allowed; }
     .wep-pick small { display: block; font-weight: 500; color: #e8c48a; margin-top: 3px; }
     #loadoutHint { font-size: 13px; color: #f2b33a; margin-bottom: 12px; }
     button:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -173,15 +174,15 @@
     <div class="card" id="menuCard">
       <div class="tag">Single-page breakfast FPS</div>
       <h1>Brunch Raid</h1>
-      <p>Pack a kit, then hit the diner. Choose <b>2 to 5</b> weapons. Start drops you on the lot for wave 1.</p>
+      <p>Pack a kit, then hit the diner. Choose <b>exactly 2</b> of the 5 weapons. Start drops you on the lot for wave 1.</p>
       <div class="loadout" id="loadout"></div>
-      <div id="loadoutHint">Pick at least 2 weapons</div>
+      <div id="loadoutHint">Pick 2 weapons</div>
       <div class="controls">
         <div><b>WASD</b> free move</div>
         <div><b>Space</b> jump</div>
         <div><b>Mouse</b> look around</div>
         <div><b>Click</b> fire</div>
-        <div><b>1–5 / scroll</b> swap kit</div>
+        <div><b>1–2 / scroll</b> swap kit</div>
         <div><b>R</b> reload · <b>Esc</b> pause</div>
       </div>
       <button id="startBtn" disabled>Start brunch raid</button>
@@ -392,9 +393,11 @@ function overlapsXZ(s, x, z, r) {
 
 function blockedAt(x, z, r, feetY = 0, bodyH = PLAYER_H) {
   const head = feetY + bodyH;
-  return forSolidsNear(x, z, r, (s) => (
-    s.block && overlapsXZ(s, x, z, r) && head > s.miny + 0.06 && feetY < s.maxy - 0.04
-  ));
+  return forSolidsNear(x, z, r, (s) => {
+    if (!s.block || !overlapsXZ(s, x, z, r)) return false;
+    if (s.stand && s.maxy > feetY + 0.02 && s.maxy <= feetY + 0.92) return false;
+    return head > s.miny + 0.06 && feetY < s.maxy - 0.04;
+  });
 }
 
 function floorUnder(x, z, feetY, r = RADIUS * 0.72) {
@@ -493,10 +496,58 @@ function blockedByPlayer(x, z, r) {
   return dx * dx + dz * dz < min * min;
 }
 
+function blockedByEnemy(self, x, z, y) {
+  const inner = self.radius * 0.5;
+  for (let i = 0; i < enemies.length; i++) {
+    const o = enemies[i];
+    if (o === self || o.dead) continue;
+    if (Math.abs(o.floorY - y) > 0.85) continue;
+    const dx = x - o.mesh.position.x;
+    const dz = z - o.mesh.position.z;
+    const min = inner + o.radius * 0.5;
+    if (dx * dx + dz * dz < min * min) return true;
+  }
+  return false;
+}
+
+function nudgeOut(x, z, r, y, bodyH) {
+  for (let n = 0; n < 5; n++) {
+    let hit = null;
+    forSolidsNear(x, z, r, (s) => {
+      if (!s.block || !overlapsXZ(s, x, z, r)) return false;
+      if (y + bodyH <= s.miny + 0.06 || y >= s.maxy - 0.04) return false;
+      hit = s;
+      return true;
+    });
+    if (!hit) break;
+    const cx = Math.max(hit.minx, Math.min(x, hit.maxx));
+    const cz = Math.max(hit.minz, Math.min(z, hit.maxz));
+    let dx = x - cx;
+    let dz = z - cz;
+    const len = Math.hypot(dx, dz);
+    if (len < 1e-5) {
+      const left = x - hit.minx;
+      const right = hit.maxx - x;
+      const back = z - hit.minz;
+      const fwd = hit.maxz - z;
+      const m = Math.min(left, right, back, fwd);
+      if (m === left) x = hit.minx - r - 0.04;
+      else if (m === right) x = hit.maxx + r + 0.04;
+      else if (m === back) z = hit.minz - r - 0.04;
+      else z = hit.maxz + r + 0.04;
+    } else {
+      const need = r + 0.04;
+      x += (dx / len) * (need - len);
+      z += (dz / len) * (need - len);
+    }
+  }
+  return { x, z };
+}
+
 function tryEnemyMove(e, nx, nz) {
-  const r = e.radius * 0.72;
-  const body = Math.max(1.05, e.height);
-  const jammed = (x, z, y) => blockedAt(x, z, r, y, body) || blockedByPlayer(x, z, r);
+  const r = e.radius * 0.58;
+  const body = Math.max(0.95, e.height * 0.85);
+  const jammed = (x, z, y) => blockedAt(x, z, r, y, body) || blockedByPlayer(x, z, r) || blockedByEnemy(e, x, z, y);
   let x = e.mesh.position.x;
   let z = e.mesh.position.z;
   let y = e.floorY;
@@ -504,7 +555,7 @@ function tryEnemyMove(e, nx, nz) {
   if (!jammed(nx, z, y)) {
     x = nx;
   } else {
-    const step = highestStep(nx, z, r, y, 0.8);
+    const step = highestStep(nx, z, r, y, 0.95);
     if (step !== null && !jammed(nx, z, step)) {
       x = nx;
       y = step;
@@ -513,18 +564,25 @@ function tryEnemyMove(e, nx, nz) {
   if (!jammed(x, nz, y)) {
     z = nz;
   } else {
-    const step = highestStep(x, nz, r, y, 0.8);
+    const step = highestStep(x, nz, r, y, 0.95);
     if (step !== null && !jammed(x, nz, step)) {
       z = nz;
       y = step;
     }
   }
 
-  const lift = highestStep(x, z, r, y, 0.8);
+  const off = nudgeOut(x, z, r, y, body);
+  const keepY = floorUnder(x, z, y + 0.25, r);
+  const dropY = floorUnder(off.x, off.z, y + 0.25, r);
+  if (dropY >= keepY - 0.45) {
+    x = off.x;
+    z = off.z;
+  }
+  const lift = highestStep(x, z, r, y, 0.95);
   if (lift !== null) y = lift;
   e.mesh.position.x = x;
   e.mesh.position.z = z;
-  e.floorY = floorUnder(x, z, y + 0.2, r);
+  e.floorY = floorUnder(x, z, y + 0.35, r);
 }
 
 const NAV_CELL = 0.8;
@@ -575,8 +633,8 @@ function nearestNav(x, z, y) {
 function buildNav() {
   navNodes.length = 0;
   navCells.clear();
-  for (let ix = -28; ix <= 28; ix++) {
-    for (let iz = -28; iz <= 28; iz++) {
+  for (let ix = -64; ix <= 32; ix++) {
+    for (let iz = -42; iz <= 28; iz++) {
       const x = ix * NAV_CELL;
       const z = iz * NAV_CELL;
       for (const y of floorsAt(x, z, 0.2)) {
@@ -764,7 +822,7 @@ function steerEnemy(e, dt, ppos) {
       if (e.path.length > 1) {
         const b = e.path[1];
         const towardClimb = Math.abs(b.y - ppos.y) <= Math.abs(wp.y - ppos.y) + 0.05;
-        if (towardClimb && Math.abs(b.y - e.floorY) < 0.85 && walkClear(e.mesh.position.x, e.mesh.position.z, b.x, b.z, e.floorY, e.radius * 0.35)) {
+        if (towardClimb && Math.abs(b.y - e.floorY) < 1.05 && walkClear(e.mesh.position.x, e.mesh.position.z, b.x, b.z, e.floorY, e.radius * 0.28)) {
           wp = b;
         }
       }
@@ -901,8 +959,8 @@ function addStairs(x0, z0, axis, sign, steps, rise, run, width, material, startY
     const y = startY + i * rise;
     const x = axis === "x" ? x0 + sign * (i * run + run / 2) : x0;
     const z = axis === "z" ? z0 + sign * (i * run + run / 2) : z0;
-    const w = axis === "x" ? run + 0.16 : width;
-    const d = axis === "z" ? run + 0.16 : width;
+    const w = axis === "x" ? run + 0.28 : width;
+    const d = axis === "z" ? run + 0.28 : width;
     place(w, rise, d, material, x, y, z, { block: false, stand: true });
     pts.push({ x, z, y: startY + (i + 1) * rise });
     if (i > 0) {
@@ -932,15 +990,16 @@ function addStairs(x0, z0, axis, sign, steps, rise, run, width, material, startY
   }
 }
 
-function addDeck(w, d, x, yTop, z, material, postMat) {
+function addDeck(w, d, x, yTop, z, material, postMat, skipFront = false) {
   const thick = 0.42;
   place(w, thick, d, material, x, yTop - thick, z);
   const posts = [
     [x - w / 2 + 0.3, z - d / 2 + 0.3],
     [x + w / 2 - 0.3, z - d / 2 + 0.3],
-    [x - w / 2 + 0.3, z + d / 2 - 0.3],
-    [x + w / 2 - 0.3, z + d / 2 - 0.3],
   ];
+  if (!skipFront) {
+    posts.push([x - w / 2 + 0.3, z + d / 2 - 0.3], [x + w / 2 - 0.3, z + d / 2 - 0.3]);
+  }
   for (const [px, pz] of posts) {
     box(0.28, yTop - thick, 0.28, postMat, px, (yTop - thick) / 2, pz);
   }
@@ -1012,6 +1071,17 @@ function makeTextures() {
     g.beginPath(); g.ellipse(w * 0.28, h * 0.3, 50, 16, 0, 0, Math.PI * 2); g.fill();
     g.beginPath(); g.ellipse(w * 0.48, h * 0.26, 36, 12, 0, 0, Math.PI * 2); g.fill();
   }, 512, 512);
+  const patio = tex((g, w, h) => {
+    const s = w / 8;
+    for (let y = 0; y < 8; y++) {
+      for (let x = 0; x < 8; x++) {
+        g.fillStyle = (x + y) % 2 ? "#1f6b6a" : "#e8c07a";
+        g.fillRect(x * s, y * s, s, s);
+        g.strokeStyle = "rgba(20,40,40,0.28)";
+        g.strokeRect(x * s + 0.5, y * s + 0.5, s - 1, s - 1);
+      }
+    }
+  });
   const menu = tex((g, w, h) => {
     g.fillStyle = "#2a1b12";
     g.fillRect(0, 0, w, h);
@@ -1025,7 +1095,7 @@ function makeTextures() {
     g.font = "20px sans-serif";
     ["Toast flight", "Bacon lash", "Syrup stack", "Egg raid"].forEach((t, i) => g.fillText(t, 40, 100 + i * 34));
   });
-  return { floor, tile, wood, sky, menu };
+  return { floor, tile, wood, sky, menu, patio };
 }
 
 function addBooth(x, z, rotY, woodMat, seatMat, yBase = 0) {
@@ -1139,12 +1209,11 @@ function addKitchen(woodMat, tileMat, chrome) {
   tileFloor.position.set(0, 0.02, -14.6);
   scene.add(tileFloor);
 
-  place(2.4, 3.05, 0.38, tileMat, -7.7, 0, -7.62, { stand: false });
-  place(2.4, 3.05, 0.38, tileMat, -3.7, 0, -7.62, { stand: false });
-  place(2.4, 3.05, 0.38, tileMat, 3.7, 0, -7.62, { stand: false });
-  place(2.4, 3.05, 0.38, tileMat, 7.7, 0, -7.62, { stand: false });
-  addWindow(-5.7, -7.62, true, tileMat);
-  addWindow(5.7, -7.62, true, tileMat);
+  place(6.6, 3.05, 0.42, tileMat, -5.8, 0, -8.0, { stand: false });
+  place(6.6, 3.05, 0.42, tileMat, 5.8, 0, -8.0, { stand: false });
+  place(5.2, 0.48, 0.46, tileMat, 0, 2.57, -8.0, { stand: false });
+  place(0.42, 3.05, 0.42, tileMat, -2.35, 0, -8.15, { stand: false });
+  place(0.42, 3.05, 0.42, tileMat, 2.35, 0, -8.15, { stand: false });
 
   place(9.6, 3.05, 0.38, tileMat, 13.6, 0, -7.55, { stand: false });
   place(0.38, 3.05, 7.6, tileMat, 8.95, 0, -15.4, { stand: false });
@@ -1162,6 +1231,8 @@ function addKitchen(woodMat, tileMat, chrome) {
   }
   place(2.4, 0.95, 0.8, steel, -3.2, 0, -16.6);
   place(2.4, 0.95, 0.8, steel, 3.2, 0, -16.6);
+  place(3.4, 0.95, 1.15, steel, 0, 0, -14.2);
+  place(3.8, 1.0, 0.7, woodMat, 0, 0, -9.35);
 
   for (let i = 0; i < 5; i++) {
     const pan = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.14, 0.05, 10), steel);
@@ -1201,6 +1272,173 @@ function addKitchen(woodMat, tileMat, chrome) {
   scene.add(cookLight);
 }
 
+function addCantina(deckY, woodMat, patioMap) {
+  const ax = -23;
+  const az = -14;
+  const plaster = tex((g, w, h) => {
+    g.fillStyle = "#c45c32";
+    g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 80; i++) {
+      g.fillStyle = i % 2 ? "rgba(255,210,160,0.08)" : "rgba(90,30,16,0.1)";
+      g.fillRect((i * 37) % w, (i * 53) % h, 18, 10);
+    }
+  });
+  const stucco = mat(plaster, 0xffffff, 2.2, 1.6);
+  const teal = new THREE.MeshStandardMaterial({ color: 0x15706c, roughness: 0.38 });
+  const ink = new THREE.MeshStandardMaterial({ color: 0x1b2430, roughness: 0.62 });
+  const lime = new THREE.MeshStandardMaterial({ color: 0xd6de55, roughness: 0.5 });
+  const clay = new THREE.MeshStandardMaterial({ color: 0x8a3a22, roughness: 0.76 });
+  const cream = new THREE.MeshStandardMaterial({ color: 0xf3e6c4, roughness: 0.72 });
+  const rust = new THREE.MeshStandardMaterial({ color: 0xa33a1c, roughness: 0.55, metalness: 0.15 });
+
+  const patio = new THREE.Mesh(new THREE.PlaneGeometry(54, 52), mat(patioMap, 0xffffff, 13, 13));
+  patio.rotation.x = -Math.PI / 2;
+  patio.position.set(ax, 0.012, az);
+  scene.add(patio);
+
+  function shell(w, d, x, z) {
+    place(w, 3.05, d, stucco, x, 0, z, { stand: false });
+    place(w + (d > w ? 0.05 : 0), 0.78, d + (w >= d ? 0.05 : 0), cream, x, 0, z, { stand: false });
+    place(w, 0.16, d, teal, x, 2.89, z, { stand: false });
+  }
+  function winX(x, z) {
+    place(1.55, 0.7, 0.48, cream, x, 0, z, { stand: false });
+    place(1.55, 0.28, 0.48, teal, x, 0.7, z, { stand: false });
+    place(0.16, 1.42, 0.48, teal, x - 0.7, 0.98, z, { stand: false });
+    place(0.16, 1.42, 0.48, teal, x + 0.7, 0.98, z, { stand: false });
+    place(1.55, 0.38, 0.48, teal, x, 2.4, z, { stand: false });
+    place(1.55, 0.27, 0.48, stucco, x, 2.78, z, { stand: false });
+  }
+  function winZ(x, z) {
+    place(0.48, 0.7, 1.55, cream, x, 0, z, { stand: false });
+    place(0.48, 0.28, 1.55, teal, x, 0.7, z, { stand: false });
+    place(0.48, 1.42, 0.16, teal, x, 0.98, z - 0.7, { stand: false });
+    place(0.48, 1.42, 0.16, teal, x, 0.98, z + 0.7, { stand: false });
+    place(0.48, 0.38, 1.55, teal, x, 2.4, z, { stand: false });
+    place(0.48, 0.27, 1.55, stucco, x, 2.78, z, { stand: false });
+  }
+  function cactus(x, z, h = 0.7) {
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.11, h, 4, 8), new THREE.MeshStandardMaterial({ color: 0x3d7a38 }));
+    body.position.set(x, 0.28 + h * 0.5, z);
+    const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.07, h * 0.35, 4, 6), new THREE.MeshStandardMaterial({ color: 0x4a8a40 }));
+    arm.position.set(x + 0.16, 0.55 + h * 0.15, z);
+    arm.rotation.z = -0.8;
+    const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.16, 0.22, 8), clay);
+    pot.position.set(x, 0.12, z);
+    scene.add(body, arm, pot);
+    addSolid(x, z, 0.46, 0.46, 0, 0.9, { stand: false });
+  }
+  function lantern(x, y, z, col) {
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8), new THREE.MeshStandardMaterial({
+      color: col, emissive: col, emissiveIntensity: 0.6, roughness: 0.35,
+    }));
+    bulb.position.set(x, y, z);
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.09, 0.06, 8), rust);
+    cap.position.set(x, y + 0.12, z);
+    scene.add(bulb, cap);
+  }
+
+  place(14.6, 0.42, 12.6, clay, ax, deckY - 0.42, az);
+  place(15.4, 0.2, 0.55, teal, ax, deckY, az - 6.45, { stand: false });
+  place(0.55, 0.2, 13.4, teal, ax - 7.25, deckY, az, { stand: false });
+  place(0.55, 0.2, 4.0, teal, ax + 7.25, deckY, az - 4.35, { stand: false });
+  place(0.55, 0.2, 4.0, teal, ax + 7.25, deckY, az + 4.35, { stand: false });
+  place(1.35, 0.2, 0.55, teal, ax - 6.4, deckY, az + 6.45, { stand: false });
+  place(1.25, 0.2, 0.55, teal, ax - 2.55, deckY, az + 6.45, { stand: false });
+  place(4.8, 0.2, 0.55, teal, ax + 4.7, deckY, az + 6.45, { stand: false });
+
+  for (const [cx, cz] of [[-6.95, -5.95], [6.95, -5.95], [-6.95, 5.95], [6.95, 5.95]]) {
+    place(0.62, 3.2, 0.62, teal, ax + cx, 0, az + cz, { stand: false });
+    place(0.72, 0.12, 0.72, cream, ax + cx, 3.08, az + cz, { stand: false });
+  }
+
+  shell(5.85, 0.46, ax - 3.8, az - 6.0);
+  winX(ax, az - 6.0);
+  shell(5.85, 0.46, ax + 3.8, az - 6.0);
+  shell(0.46, 4.85, ax - 7.0, az - 3.4);
+  winZ(ax - 7.0, az);
+  shell(0.46, 4.85, ax - 7.0, az + 3.4);
+  shell(1.45, 0.46, ax - 6.2, az + 6.0);
+  shell(1.35, 0.46, ax - 2.5, az + 6.0);
+  shell(2.05, 0.46, ax + 2.8, az + 6.0);
+  winX(ax + 4.55, az + 6.0);
+  shell(1.65, 0.46, ax + 6.15, az + 6.0);
+  shell(0.46, 3.55, ax + 7.0, az - 3.85);
+  shell(0.46, 3.55, ax + 7.0, az + 3.85);
+
+  box(0.2, 2.25, 0.5, teal, ax - 1.7, 1.125, az + 6.0);
+  box(0.2, 2.25, 0.5, teal, ax + 1.7, 1.125, az + 6.0);
+  box(3.6, 0.28, 0.55, teal, ax, 2.39, az + 6.0);
+  box(3.6, 0.52, 0.55, stucco, ax, 2.79, az + 6.0);
+  place(3.5, 0.08, 0.7, cream, ax, 0, az + 6.15);
+
+  for (let i = 0; i < 9; i++) {
+    box(0.42, 0.07, 1.7, i % 2 ? teal : lime, ax - 1.68 + i * 0.42, 2.42, az + 6.85);
+  }
+  box(0.1, 2.2, 0.1, rust, ax - 1.7, 1.1, az + 6.85);
+  box(0.1, 2.2, 0.1, rust, ax + 1.7, 1.1, az + 6.85);
+
+  addStairs(ax - 4.4, -1.7, "z", -1, 9, 0.35, 0.68, 2.15, clay);
+  place(9.4, 0.42, 4.6, woodMat, -13.2, deckY - 0.42, -14.5);
+  addRail(9.4, 0.14, -13.2, deckY, -16.72, teal);
+  addRail(9.4, 0.14, -13.2, deckY, -12.28, teal);
+
+  place(5.8, 1.02, 1.15, teal, ax, deckY, az + 3.15);
+  place(5.6, 0.08, 1.05, cream, ax, deckY + 1.02, az + 3.15);
+  for (const ox of [-1.8, -0.9, 0, 0.9, 1.8]) {
+    box(0.12, 0.22, 0.12, [0xc43c2c, 0x15706c, 0xd6de55, 0xf2b33a, 0xa33a1c][(ox + 1.8) / 0.9 | 0], ax + ox, deckY + 1.18, az + 3.15);
+  }
+  place(2.2, 0.16, 2.2, cream, ax - 3.5, deckY, az - 1.7);
+  place(2.2, 0.16, 2.2, cream, ax + 3.5, deckY, az - 1.7);
+  for (const [sx, sz] of [[-3.5, -0.7], [-3.5, -2.7], [3.5, -0.7], [3.5, -2.7]]) {
+    place(0.38, 0.68, 0.38, ink, ax + sx, deckY, az + sz);
+  }
+  place(2.0, 0.9, 0.85, ink, ax - 4.6, 0, az + 2.2);
+  place(2.0, 0.9, 0.85, rust, ax + 4.6, 0, az + 2.2);
+  place(1.6, 0.85, 1.6, cream, ax, 0, az - 1.8);
+  for (const [sx, sz] of [[-0.85, -1.1], [0.85, -1.1], [0, -2.5]]) {
+    const stool = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.16, 0.12, 10), rust);
+    stool.position.set(ax + sx, 0.5, az + sz);
+    scene.add(stool);
+  }
+
+  cactus(ax - 6.3, az + 6.75, 0.72);
+  cactus(ax + 6.3, az + 6.75, 0.55);
+  cactus(ax - 7.7, az - 2.2, 0.9);
+  for (const [lx, ly, lz, col] of [
+    [-5.4, deckY + 0.42, 5.7, 0xff6a32], [0, deckY + 0.42, 5.7, 0xffc94a], [5.4, deckY + 0.42, 5.7, 0xff6a32],
+    [-5.4, deckY + 0.42, -5.5, 0xffc94a], [5.4, deckY + 0.42, -5.5, 0xff6a32],
+    [-1.4, 2.55, 6.55, 0xff6a32], [1.4, 2.55, 6.55, 0xffc94a],
+  ]) lantern(ax + lx, ly, az + lz, col);
+
+  const mural = tex((g, w, h) => {
+    g.fillStyle = "#15706c";
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = "#f3e6c4";
+    g.fillRect(10, 10, w - 20, h - 20);
+    g.fillStyle = "#c45c32";
+    g.font = "bold 48px sans-serif";
+    g.textAlign = "center";
+    g.fillText("SALSA", w / 2, h * 0.42);
+    g.font = "bold 34px sans-serif";
+    g.fillText("CANTINA", w / 2, h * 0.72);
+    g.strokeStyle = "#15706c";
+    g.lineWidth = 8;
+    g.strokeRect(18, 18, w - 36, h - 36);
+  }, 512, 256);
+  const sign = new THREE.Mesh(
+    new THREE.BoxGeometry(3.4, 1.05, 0.12),
+    new THREE.MeshStandardMaterial({ map: mural, emissive: 0xc45c32, emissiveIntensity: 0.18 })
+  );
+  sign.position.set(ax, 3.48, az + 6.42);
+  sign.userData.noHit = true;
+  scene.add(sign);
+
+  const glow = new THREE.PointLight(0xff8a40, 18, 15);
+  glow.position.set(ax, 2.7, az + 1.5);
+  scene.add(glow);
+}
+
 function buildDiner() {
   const textures = makeTextures();
   scene.background = new THREE.Color(0x7ec8f5);
@@ -1227,7 +1465,7 @@ function buildDiner() {
   const cream = new THREE.MeshStandardMaterial({ color: 0xf3e1bf, roughness: 0.8 });
 
   const deckY = 3.15;
-  addDeck(18, 14, 0, deckY, -14.5, woodMat, chrome);
+  addDeck(18, 14, 0, deckY, -14.5, woodMat, chrome, true);
   addDeck(10, 8, 13.8, deckY, -11.5, woodMat, chrome);
 
   place(3.0, 3.05, 0.45, tileMat, -7.5, 0, -21.4, { stand: false });
@@ -1243,16 +1481,17 @@ function buildDiner() {
 
   addKitchen(woodMat, tileMat, chrome);
 
-  addStairs(-8.6, -6.15, "x", 1, 9, 0.35, 0.68, 2.35, waffle);
-  addStairs(8.6, -6.15, "x", -1, 9, 0.35, 0.68, 2.35, waffle);
-  place(6.4, 0.42, 2.15, waffle, 0, deckY - 0.42, -6.7);
-  addRail(2.4, 0.16, 0, deckY, -5.68, chrome);
+  addStairs(-8.6, -6.7, "x", 1, 9, 0.35, 0.68, 2.15, waffle);
+  addStairs(8.6, -6.7, "x", -1, 9, 0.35, 0.68, 2.15, waffle);
+  place(6.4, 0.42, 2.15, waffle, 0, deckY - 0.42, -6.7, { block: false, stand: true });
+  addRail(6.4, 0.14, 0, deckY, -5.62, chrome);
   addStairs(14.2, -11.5, "x", 1, 5, 0.36, 0.7, 2.8, waffle, deckY);
 
   addDeck(7.2, 7.2, 18.6, 4.95, -11.5, cream, chrome);
 
   addRail(18, 0.16, 0, deckY, -21.4, chrome);
-  addRail(0.16, 10.5, -8.9, deckY, -16.2, chrome);
+  addRail(0.16, 3.8, -8.9, deckY, -19.7, chrome);
+  addRail(0.16, 3.8, -8.9, deckY, -10.9, chrome);
   addRail(6.2, 0.16, -5.8, deckY, -7.55, chrome);
   addRail(6.2, 0.16, 5.8, deckY, -7.55, chrome);
   addRail(0.16, 6.4, 18.8, deckY, -14.6, chrome);
@@ -1295,19 +1534,20 @@ function buildDiner() {
   addBar(18.6, -13.6, 4.6, 1.3, 4.95, woodMat, chrome);
   addDinerTable(17.2, -9.6, 4.95, woodMat, chrome);
 
-  place(2.2, 0.75, 2.2, waffle, -13, 0, 3);
-  place(2.0, 0.7, 2.0, waffle, -13, 0.75, 3);
-  place(2.2, 0.75, 2.2, red, 14, 0, 14);
-  place(2.0, 0.7, 2.0, red, 14, 0.75, 14);
+  place(1.35, 1.15, 0.85, chrome, -10.6, 0, -5.4);
+  place(1.35, 1.15, 0.85, chrome, 10.6, 0, -5.4);
+  place(1.1, 0.85, 1.1, woodMat, -3.8, 0, 6.4);
+  place(0.85, 1.15, 0.85, woodMat, 3.8, 0, 6.4);
 
   addUmbrella(-6, 18);
   addUmbrella(6, 18);
   addPlanter(-12.4, 12.2);
   addPlanter(12.4, 12.2);
-  addPlanter(-8.2, -6.4);
-  addPlanter(8.2, -6.4);
-  addPlanter(-4.6, -7.2, deckY);
-  addPlanter(4.6, -7.2, deckY);
+  addPlanter(-16.4, 10.6);
+  addPlanter(12.4, -3.8);
+  addPlanter(-5.8, -9.6, deckY);
+  addPlanter(5.8, -9.6, deckY);
+  addCantina(deckY, woodMat, textures.patio);
 
   const neonTex = tex((g, w, h) => {
     g.fillStyle = "#2a120e";
@@ -1328,7 +1568,7 @@ function buildDiner() {
   menu.position.set(0, 2.1, 8.9);
   scene.add(menu);
 
-  for (const [x, z] of [[-8, 16], [8, 16], [0, -4]]) {
+  for (const [x, z] of [[-8, 16], [8, 16]]) {
     const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 4.2, 8), chrome);
     lamp.position.set(x, 2.1, z);
     scene.add(lamp);
@@ -1347,6 +1587,45 @@ function enemyMat(color, extras = {}) {
   return new THREE.MeshStandardMaterial({ color, roughness: 0.62, metalness: 0.04, ...extras });
 }
 
+let waffleTex;
+function waffleMap() {
+  if (waffleTex) return waffleTex;
+  waffleTex = tex((ctx, w, h) => {
+    ctx.fillStyle = "#e8b05a";
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = "#7a4a18";
+    const n = 5;
+    const cell = w / n;
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n; j++) ctx.fillRect(i * cell + 8, j * cell + 8, cell - 16, cell - 16);
+    }
+    ctx.fillStyle = "#f2c36b";
+    ctx.fillRect(0, 0, w, 6);
+    ctx.fillRect(0, 0, 6, h);
+  }, 128, 128);
+  return waffleTex;
+}
+
+function part(parent, geo, color, x, y, z, rx = 0, ry = 0, rz = 0, extras = {}) {
+  const m = new THREE.Mesh(geo, enemyMat(color, extras));
+  m.position.set(x, y, z);
+  m.rotation.set(rx, ry, rz);
+  parent.add(m);
+  return m;
+}
+
+function foodEyes(parent, y, z, spread, s = 0.055) {
+  const white = new THREE.MeshBasicMaterial({ color: 0xfff6df });
+  const dark = new THREE.MeshBasicMaterial({ color: 0x1a1008 });
+  for (const sx of [-spread, spread]) {
+    const e = new THREE.Mesh(new THREE.SphereGeometry(s, 8, 8), white);
+    e.position.set(sx, y, z);
+    const p = new THREE.Mesh(new THREE.SphereGeometry(s * 0.42, 6, 6), dark);
+    p.position.set(sx, y - s * 0.08, z + s * 0.72);
+    parent.add(e, p);
+  }
+}
+
 function makeEnemyMesh(kind) {
   const g = new THREE.Group();
   const shadow = new THREE.Mesh(
@@ -1359,49 +1638,67 @@ function makeEnemyMesh(kind) {
   g.add(shadow);
 
   if (kind.name === "Hangry Egg") {
-    const body = new THREE.Mesh(new THREE.SphereGeometry(0.38, 18, 14), enemyMat(0xfff4d2));
-    body.scale.set(1, 1.2, 1);
-    body.position.y = 0.46;
-    const yolk = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 10), enemyMat(0xf2b33a));
-    yolk.position.set(0.08, 0.42, 0.28);
-    g.add(body, yolk);
+    const white = part(g, new THREE.SphereGeometry(0.4, 16, 12), 0xfff4d2, 0, 0.28, 0);
+    white.scale.set(1.45, 0.34, 1.15);
+    const lobe = part(g, new THREE.SphereGeometry(0.22, 12, 10), 0xffeec4, -0.22, 0.26, 0.12);
+    lobe.scale.set(1.1, 0.4, 0.9);
+    const yolk = part(g, new THREE.SphereGeometry(0.2, 14, 12), 0xf0a020, 0.04, 0.4, 0.12, 0, 0, 0, { roughness: 0.35 });
+    yolk.scale.set(1.15, 0.55, 1.15);
+    part(g, new THREE.SphereGeometry(0.06, 8, 8), 0xfff1a8, 0.1, 0.48, 0.22);
+    foodEyes(g, 0.46, 0.28, 0.09, 0.05);
+    part(g, new THREE.BoxGeometry(0.08, 0.02, 0.03), 0x3b2418, -0.09, 0.54, 0.26, 0, 0, 0.4);
+    part(g, new THREE.BoxGeometry(0.08, 0.02, 0.03), 0x3b2418, 0.09, 0.54, 0.26, 0, 0, -0.4);
   } else if (kind.name === "Rogue Sausage") {
-    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.2, 0.85, 8, 12), enemyMat(0xc45c2c));
-    body.rotation.z = Math.PI / 2;
-    body.position.y = 0.22;
-    const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), new THREE.MeshBasicMaterial({ color: 0xfff6df }));
-    const eyeR = eyeL.clone();
-    eyeL.position.set(-0.16, 0.3, 0.16);
-    eyeR.position.set(0.16, 0.3, 0.16);
-    g.add(body, eyeL, eyeR);
+    const link = part(g, new THREE.CapsuleGeometry(0.19, 0.88, 6, 12), 0xc45c2c, 0, 0.22, 0, 0, 0, 1.57);
+    link.scale.set(1, 1, 1.05);
+    part(g, new THREE.SphereGeometry(0.2, 10, 8), 0xb84a22, -0.48, 0.22, 0);
+    part(g, new THREE.SphereGeometry(0.2, 10, 8), 0xb84a22, 0.48, 0.22, 0);
+    for (const x of [-0.22, 0, 0.22]) {
+      part(g, new THREE.TorusGeometry(0.2, 0.018, 6, 10), 0x6b2a16, x, 0.22, 0, 0, 1.57, 0);
+    }
+    part(g, new THREE.CapsuleGeometry(0.03, 0.42, 4, 6), 0xf2b33a, 0.04, 0.38, 0.12, 0, 0, 1.1);
+    foodEyes(g, 0.38, 0.16, 0.14, 0.05);
   } else if (kind.name === "Cereal Haunt") {
-    const body = new THREE.Mesh(new THREE.IcosahedronGeometry(0.38, 0), enemyMat(0xffc94a, { flatShading: true, emissive: 0x5a3a00, emissiveIntensity: 0.18 }));
-    body.position.y = 0.55;
-    g.add(body);
+    part(g, new THREE.CylinderGeometry(0.4, 0.3, 0.24, 16), 0xf2e2b0, 0, 0.92, 0, 0, 0, 0, { emissive: 0x5a3a00, emissiveIntensity: 0.12 });
+    part(g, new THREE.CylinderGeometry(0.34, 0.34, 0.05, 16), 0xfff8ee, 0, 1.02, 0, 0, 0, 0, { emissive: 0xffcc66, emissiveIntensity: 0.28 });
+    const loops = [0xff4a3a, 0xf2b33a, 0x4caf50, 0x7e57c2, 0xff8a00, 0x42a5f5];
+    const spots = [[-0.12, 1.08, 0.1], [0.14, 1.09, -0.06], [0.02, 1.1, 0.16], [-0.16, 1.07, -0.12], [0.18, 1.12, 0.12], [-0.02, 1.22, -0.02]];
+    spots.forEach((p, i) => {
+      part(g, new THREE.TorusGeometry(0.055, 0.02, 6, 10), loops[i], p[0], p[1], p[2], 0.8, i * 0.7, 0.2);
+    });
+    part(g, new THREE.CapsuleGeometry(0.028, 0.42, 4, 6), 0xc9d4dc, 0.22, 1.08, 0.08, 0.4, 0, 1.1, { metalness: 0.55, roughness: 0.25 });
+    part(g, new THREE.SphereGeometry(0.05, 8, 8), 0xc9d4dc, 0.38, 0.98, 0.02, 0, 0, 0, { metalness: 0.55 });
+    foodEyes(g, 0.98, 0.32, 0.12, 0.05);
   } else if (kind.name === "Avocado Brute") {
-    const body = new THREE.Mesh(new THREE.SphereGeometry(0.44, 16, 12), enemyMat(0x3d6b2f));
-    body.scale.set(1.15, 0.9, 1);
-    body.position.y = 0.4;
-    const pit = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), enemyMat(0xc4a04a));
-    pit.position.set(0.12, 0.44, 0.3);
-    g.add(body, pit);
+    const skin = part(g, new THREE.SphereGeometry(0.44, 16, 12), 0x2f5a22, 0, 0.4, 0);
+    skin.scale.set(1.2, 0.88, 1.05);
+    const flesh = part(g, new THREE.SphereGeometry(0.36, 14, 12), 0x8fbf4a, 0.04, 0.42, 0.08);
+    flesh.scale.set(1.05, 0.72, 0.85);
+    part(g, new THREE.SphereGeometry(0.17, 10, 8), 0x8a5a28, 0.08, 0.46, 0.22);
+    part(g, new THREE.SphereGeometry(0.05, 6, 6), 0x5a3818, 0.1, 0.5, 0.3);
+    foodEyes(g, 0.52, 0.34, 0.14, 0.055);
   } else if (kind.name === "Waffle Stack") {
-    const waffleMat = enemyMat(0xe0a24a);
+    const wmat = enemyMat(0xe0a24a, { map: waffleMap() });
     for (let i = 0; i < 3; i++) {
-      const slab = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.14, 0.72), waffleMat);
-      slab.position.y = 0.16 + i * 0.18;
-      slab.rotation.y = i * 0.18;
+      const slab = new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.13, 0.74), wmat);
+      slab.position.y = 0.16 + i * 0.17;
+      slab.rotation.y = i * 0.16;
       g.add(slab);
     }
+    part(g, new THREE.BoxGeometry(0.2, 0.08, 0.2), 0xfff1a8, 0.08, 0.62, 0.06);
+    part(g, new THREE.SphereGeometry(0.08, 8, 8), 0x8a4a16, 0.22, 0.48, 0.28);
+    part(g, new THREE.CapsuleGeometry(0.04, 0.2, 4, 6), 0x6b3a1f, 0.26, 0.32, 0.32, 0.6, 0, 0.2);
+    foodEyes(g, 0.58, 0.38, 0.14, 0.05);
   } else {
-    const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.18, 0.5, 14), enemyMat(0xf4f0e8));
-    cup.position.y = 0.28;
-    const coffee = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.06, 14), enemyMat(0x3b2418));
-    coffee.position.y = 0.52;
-    const handle = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.035, 8, 14, Math.PI), enemyMat(0xf4f0e8));
-    handle.rotation.y = Math.PI / 2;
-    handle.position.set(0.24, 0.3, 0);
-    g.add(cup, coffee, handle);
+    part(g, new THREE.CylinderGeometry(0.24, 0.2, 0.52, 16), 0xf7f1e6, 0, 0.3, 0);
+    part(g, new THREE.TorusGeometry(0.24, 0.035, 8, 16), 0xfff8ee, 0, 0.54, 0, 1.57, 0, 0);
+    part(g, new THREE.CylinderGeometry(0.2, 0.2, 0.06, 14), 0x3b2418, 0, 0.54, 0);
+    part(g, new THREE.CylinderGeometry(0.26, 0.26, 0.16, 14), 0xc43c2c, 0, 0.28, 0);
+    const handle = part(g, new THREE.TorusGeometry(0.15, 0.032, 8, 14, Math.PI), 0xf7f1e6, 0.26, 0.3, 0, 0, 1.57, 0);
+    handle.rotation.z = 0;
+    part(g, new THREE.SphereGeometry(0.045, 8, 8), 0xf4f0e8, -0.06, 0.72, 0.04, 0, 0, 0, { transparent: true, opacity: 0.45 });
+    part(g, new THREE.SphereGeometry(0.035, 8, 8), 0xf4f0e8, 0.04, 0.84, 0, 0, 0, 0, { transparent: true, opacity: 0.35 });
+    foodEyes(g, 0.38, 0.22, 0.1, 0.05);
   }
   const hitMeshes = [];
   const glowMats = [];
@@ -1435,16 +1732,19 @@ function renderLoadout() {
     b.innerHTML = w.name + "<small>" + w.blurb + " · " + w.max + " " + w.ammoName + "</small>";
     b.addEventListener("click", () => {
       if (picked.has(i)) picked.delete(i);
-      else if (picked.size < 5) picked.add(i);
+      else if (picked.size < 2) picked.add(i);
       renderLoadout();
     });
+    if (picked.size >= 2 && !picked.has(i)) b.classList.add("locked");
     loadoutBox.appendChild(b);
   });
   fillKit();
-  loadoutHint.textContent = picked.size < 2
-    ? "Pick at least 2 weapons"
-    : picked.size + " packed — start when you’re ready";
-  startBtn.disabled = picked.size < 2;
+  loadoutHint.textContent = picked.size === 0
+    ? "Pick 2 weapons"
+    : picked.size === 1
+      ? "Pick 1 more — only 2 can go in"
+      : "2 packed — start when you’re ready";
+  startBtn.disabled = picked.size !== 2;
 }
 
 function showLoadout() {
@@ -1510,6 +1810,19 @@ function collectSpawnPoints() {
   }
 }
 
+function spawnRoom(x, y, z) {
+  for (let i = 0; i < enemies.length; i++) {
+    const o = enemies[i];
+    if (o.dead) continue;
+    if (Math.abs(o.floorY - y) > 0.85) continue;
+    const dx = x - o.mesh.position.x;
+    const dz = z - o.mesh.position.z;
+    const min = o.radius + 0.85;
+    if (dx * dx + dz * dz < min * min) return false;
+  }
+  return true;
+}
+
 function spawnEnemy() {
   const far = [];
   for (const p of spawnPoints) {
@@ -1519,9 +1832,20 @@ function spawnEnemy() {
   }
   const pool = far.length ? far : spawnPoints;
   if (!pool.length) return false;
-  const spot = pool[(Math.random() * pool.length) | 0];
+  let spot = null;
+  for (let n = 0; n < 22; n++) {
+    const p = pool[(Math.random() * pool.length) | 0];
+    if (spawnRoom(p.x, p.y, p.z)) { spot = p; break; }
+  }
+  if (!spot) {
+    for (let i = 0; i < pool.length; i += 3) {
+      const p = pool[i];
+      if (spawnRoom(p.x, p.y, p.z)) { spot = p; break; }
+    }
+  }
+  if (!spot) return false;
   const kind = ENEMY_KINDS[(Math.random() * ENEMY_KINDS.length) | 0];
-  const hp = kind.hp + (state.wave - 1) * 8;
+  const hp = Math.round(kind.hp * Math.pow(1.2, Math.floor(state.wave / 5)));
   const mesh = makeEnemyMesh(kind);
   mesh.position.set(spot.x, spot.y, spot.z);
   scene.add(mesh);
@@ -1548,10 +1872,18 @@ function spawnEnemy() {
   return true;
 }
 
+function waveCount() {
+  return 4 + ((state.wave - 1) % 5) * 2;
+}
+
 function spawnWave() {
-  state.spawnLeft = 3 + state.wave;
+  state.spawnLeft = waveCount();
   state.spawnTimer = 0.6;
-  announce("Wave " + state.wave + " — " + state.spawnLeft + " leftovers");
+  const tier = Math.floor(state.wave / 5);
+  let msg = "Wave " + state.wave + " — " + state.spawnLeft + " leftovers";
+  if (state.wave % 5 === 0) msg += " · leftovers tougher (+20%)";
+  else if (tier && (state.wave - 1) % 5 === 0) msg += " · pack size reset";
+  announce(msg);
 }
 
 function removeEnemy(e) {
@@ -1906,10 +2238,11 @@ function drawWeapon() {
   for (let i = 0; i < weaponModels.length; i++) {
     weaponModels[i].visible = ARMORY[i] === held && state.running;
   }
-  const bobX = Math.sin(state.bob) * 0.01;
-  const bobY = Math.abs(Math.cos(state.bob)) * 0.008;
-  wepHands.position.set(-0.2 + bobX, -0.17 - bobY - state.kick * 0.004, -0.58 - state.kick * 0.01);
-  wepHands.rotation.set(0.1 + state.kick * 0.008, 0.14, 0.05);
+  const bobX = Math.sin(state.bob) * 0.012;
+  const bobY = Math.abs(Math.cos(state.bob)) * 0.01;
+  wepHands.scale.setScalar(1.5);
+  wepHands.position.set(-0.14 + bobX, -0.26 - bobY - state.kick * 0.005, -0.34 - state.kick * 0.012);
+  wepHands.rotation.set(0.16 + state.kick * 0.008, 0.1, 0.04);
 }
 
 function syncHud() {
@@ -1948,7 +2281,7 @@ function frame(t) {
 }
 
 function start() {
-  if (picked.size < 2) return;
+  if (picked.size !== 2) return;
   resetGame();
   overlay.style.display = "none";
   pauseEl.style.display = "none";
