@@ -64,6 +64,74 @@
       background: #f2b33a;
       border-radius: 50%;
     }
+    #scope {
+      display: none;
+      position: absolute;
+      inset: 0;
+    }
+    #scope.on { display: block; }
+    #scope::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at center, transparent 33vmin, #070504 34.4vmin);
+    }
+    #scopeRing {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 66vmin;
+      height: 66vmin;
+      margin: -33vmin 0 0 -33vmin;
+      border: 4px solid #1a120c;
+      border-radius: 50%;
+      box-shadow: inset 0 0 28px rgba(30, 50, 36, 0.28);
+    }
+    #scopeRing::before, #scopeRing::after {
+      content: "";
+      position: absolute;
+      background: rgba(18, 12, 8, 0.82);
+    }
+    #scopeRing::before {
+      left: 50%;
+      top: 8%;
+      width: 2px;
+      height: 84%;
+      margin-left: -1px;
+    }
+    #scopeRing::after {
+      top: 50%;
+      left: 8%;
+      height: 2px;
+      width: 84%;
+      margin-top: -1px;
+    }
+    #scopeDot {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 6px;
+      height: 6px;
+      margin: -3px 0 0 -3px;
+      background: #c43c2c;
+      border-radius: 50%;
+    }
+    #boltCd {
+      display: none;
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 34px;
+      height: 34px;
+      margin: -17px 0 0 -17px;
+      border-radius: 50%;
+      background: conic-gradient(#f2b33a var(--cd, 360deg), rgba(242, 179, 58, 0.15) 0);
+      -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));
+      mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));
+      animation: boltspin 0.75s linear infinite;
+    }
+    #boltCd.on { display: block; }
+    @keyframes boltspin { to { transform: rotate(360deg); } }
     #weaponName { text-align: right; }
     #overlay, #pause {
       position: fixed;
@@ -156,6 +224,11 @@
       <div class="panel"><div class="label">Kills</div><div class="value" id="kills">0</div></div>
     </div>
     <div id="crosshair"></div>
+    <div id="boltCd"></div>
+    <div id="scope">
+      <div id="scopeRing"></div>
+      <div id="scopeDot"></div>
+    </div>
     <div class="bar" id="bottom">
       <div class="panel">
         <div class="label">Stomach</div>
@@ -174,7 +247,7 @@
     <div class="card" id="menuCard">
       <div class="tag">Single-page breakfast FPS</div>
       <h1>Brunch Raid</h1>
-      <p>Pack a kit, then hit the diner. Choose <b>exactly 2</b> of the 5 weapons. Start drops you on the lot for wave 1.</p>
+      <p>Pack a kit, then hit the diner. Choose <b>exactly 2</b> of the 6 weapons. Start drops you on the lot for wave 1.</p>
       <div class="loadout" id="loadout"></div>
       <div id="loadoutHint">Pick 2 weapons</div>
       <div class="controls">
@@ -183,7 +256,7 @@
         <div><b>Mouse</b> look around</div>
         <div><b>Click</b> fire</div>
         <div><b>1–2 / scroll</b> swap kit</div>
-        <div><b>R</b> reload · <b>Esc</b> pause</div>
+        <div><b>Shift</b> aim scope · <b>R</b> reload · <b>Esc</b> pause</div>
       </div>
       <button id="startBtn" disabled>Start brunch raid</button>
     </div>
@@ -228,6 +301,9 @@ const hudKills = document.getElementById("kills");
 const hudWave = document.getElementById("wave");
 const hudWep = document.getElementById("wep");
 const hudAmmo = document.getElementById("ammo");
+const scopeEl = document.getElementById("scope");
+const crosshairEl = document.getElementById("crosshair");
+const boltCdEl = document.getElementById("boltCd");
 
 const EYE = 1.65;
 const SPEED = 8.4;
@@ -244,6 +320,7 @@ const ARMORY = [
   { name: "Syrup Shotgun", ammoName: "glugs", blurb: "Close sticky blast", max: 6, mag: 6, reserve: 18, dmg: 16, spread: 0.09, pellets: 7, rpm: 85, reload: 1.15, range: 9, kick: 22, color: "#6b3a1f" },
   { name: "Espresso SMG", ammoName: "shots", blurb: "Caffeinated spray", max: 28, mag: 28, reserve: 84, dmg: 12, spread: 0.035, pellets: 1, rpm: 780, reload: 1.05, range: 18, kick: 4, color: "#3b2418" },
   { name: "Pancake Frisbee", ammoName: "cakes", blurb: "Thrown stack, heavy hit", max: 5, mag: 5, reserve: 15, dmg: 48, spread: 0.006, pellets: 1, rpm: 95, reload: 1.2, range: 30, kick: 10, color: "#f2b33a", projectile: true },
+  { name: "Maple Marksman", ammoName: "rounds", blurb: "Bolt-action, Shift to 2x scope", max: 5, mag: 5, reserve: 15, dmg: 96, spread: 0.004, pellets: 1, rpm: 30, reload: 1.55, range: 52, kick: 16, color: "#8a3a1a", scope: true },
 ];
 const WEAPONS = [];
 const picked = new Set();
@@ -261,6 +338,7 @@ const spawnPoints = [];
 const enemies = [];
 const projectiles = [];
 const particles = [];
+const scanMeshes = [];
 
 const keys = Object.create(null);
 const state = {
@@ -288,10 +366,13 @@ const state = {
 };
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.12, 140);
+const BASE_FOV = 75;
+const SCOPE_FOV = 2 * Math.atan(Math.tan((BASE_FOV * Math.PI / 180) * 0.5) / 2) * 180 / Math.PI;
+const camera = new THREE.PerspectiveCamera(BASE_FOV, innerWidth / innerHeight, 0.12, 180);
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.25));
 renderer.setSize(innerWidth, innerHeight);
+renderer.sortObjects = false;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
 document.getElementById("view").appendChild(renderer.domElement);
@@ -419,14 +500,12 @@ function highestStep(x, z, r, feetY, maxUp = 0.65) {
 }
 
 function canMelee(e, flat) {
-  const reach = RADIUS + e.radius + 0.06;
-  if (flat > reach) return false;
+  if (flat > RADIUS + e.radius + 0.06) return false;
   const pMin = player.position.y + 0.15;
   const pMax = player.position.y + PLAYER_H;
   const eMin = e.floorY;
   const eMax = e.floorY + e.height + 0.2;
-  if (eMax < pMin || eMin > pMax) return false;
-  return walkClear(player.position.x, player.position.z, e.mesh.position.x, e.mesh.position.z, player.position.y, 0.12);
+  return eMax >= pMin && eMin <= pMax;
 }
 
 function tryMove(nx, nz, r) {
@@ -585,7 +664,7 @@ function tryEnemyMove(e, nx, nz) {
   e.floorY = floorUnder(x, z, y + 0.35, r);
 }
 
-const NAV_CELL = 0.8;
+const NAV_CELL = 1;
 const navNodes = [];
 const navCells = new Map();
 const stairWays = [];
@@ -612,8 +691,8 @@ function nearestNav(x, z, y) {
   let bestD = 1e9;
   const ix = Math.round(x / NAV_CELL);
   const iz = Math.round(z / NAV_CELL);
-  for (let dx = -3; dx <= 3; dx++) {
-    for (let dz = -3; dz <= 3; dz++) {
+  for (let dx = -4; dx <= 4; dx++) {
+    for (let dz = -4; dz <= 4; dz++) {
       const list = navCells.get(cellKey(ix + dx, iz + dz));
       if (!list) continue;
       for (const n of list) {
@@ -621,11 +700,6 @@ function nearestNav(x, z, y) {
         if (d < bestD) { bestD = d; best = n; }
       }
     }
-  }
-  if (best) return best;
-  for (const n of navNodes) {
-    const d = (n.x - x) * (n.x - x) + (n.z - z) * (n.z - z) + (n.y - y) * (n.y - y) * 10;
-    if (d < bestD) { bestD = d; best = n; }
   }
   return best;
 }
@@ -792,6 +866,8 @@ function walkClear(ax, az, bx, bz, y, r) {
   return true;
 }
 
+let pathBudget = 0;
+
 function steerEnemy(e, dt, ppos) {
   const flat = Math.hypot(ppos.x - e.mesh.position.x, ppos.z - e.mesh.position.z);
   const climb = ppos.y - e.floorY;
@@ -801,9 +877,10 @@ function steerEnemy(e, dt, ppos) {
   );
 
   e.repath -= dt;
-  if (!canSee && (e.repath <= 0 || e.path.length < 1)) {
+  if (!canSee && (e.repath <= 0 || e.path.length < 1) && pathBudget > 0) {
+    pathBudget--;
     e.path = findPath(e.mesh.position.x, e.mesh.position.z, e.floorY, ppos.x, ppos.z, ppos.y);
-    e.repath = 0.35 + Math.random() * 0.15;
+    e.repath = 0.45 + Math.random() * 0.2;
   }
   if (canSee) e.path = [];
 
@@ -920,8 +997,17 @@ function buildWeapons() {
   cakes.add(wmesh(new THREE.CylinderGeometry(0.044, 0.044, 0.012, 16), 0xf2c36b, 0, 0.04, -0.09, 1.2));
   cakes.add(wmesh(new THREE.CylinderGeometry(0.038, 0.038, 0.01, 16), 0xf6d48a, 0, 0.05, -0.1, 1.2));
 
-  weaponModels.push(toast, bacon, shotgun, smg, cakes);
+  const sniper = new THREE.Group();
+  sniper.add(wmesh(new THREE.BoxGeometry(0.03, 0.03, 0.18), 0x5a2f18, 0, 0.02, 0.01));
+  sniper.add(wmesh(new THREE.BoxGeometry(0.026, 0.072, 0.036), 0x4a2414, 0.006, -0.03, 0.06));
+  sniper.add(wmesh(new THREE.CylinderGeometry(0.007, 0.008, 0.42, 10), 0x2a160c, 0, 0.026, -0.28, 1.57, 0, 0, 0.62));
+  sniper.add(wmesh(new THREE.CylinderGeometry(0.012, 0.012, 0.1, 10), 0x1a100a, 0, 0.052, -0.08, 1.57, 0, 0, 0.45));
+  sniper.add(wmesh(new THREE.CylinderGeometry(0.015, 0.015, 0.02, 10), 0x3d6b4a, 0, 0.052, -0.14, 1.57, 0, 0, 0.3));
+  sniper.add(wmesh(new THREE.BoxGeometry(0.018, 0.012, 0.04), 0xc45c32, 0, 0.038, 0.02));
+
+  weaponModels.push(toast, bacon, shotgun, smg, cakes, sniper);
   for (const g of weaponModels) wepHands.add(g);
+  wepHands.scale.setScalar(1.5);
 }
 
 function tex(draw, w = 256, h = 256) {
@@ -1717,6 +1803,36 @@ function currentWeapon() {
   return WEAPONS[state.weapon] || ARMORY[0];
 }
 
+function isAiming() {
+  return !!(currentWeapon().scope && (keys.ShiftLeft || keys.ShiftRight) && state.running && !state.paused);
+}
+
+function syncBoltCd() {
+  const w = currentWeapon();
+  const wait = w.scope ? 60 / w.rpm : 0;
+  const t = performance.now() / 1000 - state.lastShot;
+  const show = !!(w.scope && wait && state.lastShot > 0 && t < wait && state.running && !state.paused && !isAiming());
+  boltCdEl.classList.toggle("on", show);
+  if (show) boltCdEl.style.setProperty("--cd", ((1 - t / wait) * 360) + "deg");
+}
+
+function applyZoom() {
+  const ads = isAiming();
+  scopeEl.classList.toggle("on", ads);
+  crosshairEl.style.opacity = ads ? "0" : "1";
+  syncBoltCd();
+  const want = ads ? SCOPE_FOV : BASE_FOV;
+  if (Math.abs(camera.fov - want) < 0.08) {
+    if (camera.fov !== want) {
+      camera.fov = want;
+      camera.updateProjectionMatrix();
+    }
+    return;
+  }
+  camera.fov += (want - camera.fov) * 0.28;
+  camera.updateProjectionMatrix();
+}
+
 function fillKit() {
   WEAPONS.length = 0;
   [...picked].sort((a, b) => a - b).forEach((i) => WEAPONS.push(ARMORY[i]));
@@ -1910,9 +2026,10 @@ function damageEnemy(e, dmg) {
 function hitscan(spread, meshes) {
   const w = currentWeapon();
   camera.getWorldDirection(lookDir);
-  lookDir.x += (Math.random() - 0.5) * spread;
-  lookDir.y += (Math.random() - 0.5) * spread;
-  lookDir.z += (Math.random() - 0.5) * spread;
+  const useSpread = currentWeapon().scope && isAiming() ? 0 : spread;
+  lookDir.x += (Math.random() - 0.5) * useSpread;
+  lookDir.y += (Math.random() - 0.5) * useSpread;
+  lookDir.z += (Math.random() - 0.5) * useSpread;
   lookDir.normalize();
   camera.getWorldPosition(tmp2);
   raycaster.set(tmp2, lookDir);
@@ -1953,12 +2070,13 @@ function shoot() {
     });
     return;
   }
-  const meshes = [];
+  scanMeshes.length = 0;
   for (const e of enemies) {
     if (e.dead || !e.hitMeshes) continue;
-    for (let i = 0; i < e.hitMeshes.length; i++) meshes.push(e.hitMeshes[i]);
+    const hm = e.hitMeshes;
+    for (let i = 0; i < hm.length; i++) scanMeshes.push(hm[i]);
   }
-  for (let i = 0; i < w.pellets; i++) hitscan(w.spread, meshes);
+  for (let i = 0; i < w.pellets; i++) hitscan(w.spread, scanMeshes);
 }
 
 function startReload() {
@@ -2101,6 +2219,7 @@ function update(dt) {
 
   if (state.mouseDown) shoot();
   state.kick *= Math.pow(0.002, dt);
+  pathBudget = 1;
 
   if (state.spawnLeft > 0) {
     state.spawnTimer -= dt;
@@ -2110,6 +2229,10 @@ function update(dt) {
     }
   }
 
+  tickActors(dt);
+}
+
+function tickActors(dt) {
   const ppos = player.position;
   for (const e of enemies) {
     if (e.dead) continue;
@@ -2240,9 +2363,13 @@ function drawWeapon() {
   }
   const bobX = Math.sin(state.bob) * 0.012;
   const bobY = Math.abs(Math.cos(state.bob)) * 0.01;
-  wepHands.scale.setScalar(1.5);
-  wepHands.position.set(-0.14 + bobX, -0.26 - bobY - state.kick * 0.005, -0.34 - state.kick * 0.012);
-  wepHands.rotation.set(0.16 + state.kick * 0.008, 0.1, 0.04);
+  if (isAiming()) {
+    wepHands.visible = false;
+  } else {
+    wepHands.visible = state.running;
+    wepHands.position.set(-0.14 + bobX, -0.26 - bobY - state.kick * 0.005, -0.34 - state.kick * 0.012);
+    wepHands.rotation.set(0.16 + state.kick * 0.008, 0.1, 0.04);
+  }
 }
 
 function syncHud() {
@@ -2273,8 +2400,11 @@ function frame(t) {
   state.last = now;
   if (state.running && !state.paused) {
     update(dt);
+    applyZoom();
     drawWeapon();
     syncHud();
+  } else {
+    syncBoltCd();
   }
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
@@ -2319,7 +2449,8 @@ document.addEventListener("mousemove", (e) => {
   if (!state.running || state.paused) return;
   const locked = document.pointerLockElement === renderer.domElement;
   if (!locked && !state.mouseDown) return;
-  const sens = locked ? MOUSE : 0.005;
+  const zoom = isAiming() ? 2 : 1;
+  const sens = (locked ? MOUSE : 0.005) / zoom;
   state.yaw -= e.movementX * sens;
   state.pitch -= e.movementY * sens;
   state.pitch = Math.max(-PITCH_MAX, Math.min(PITCH_MAX, state.pitch));
@@ -2333,7 +2464,7 @@ document.addEventListener("keydown", (e) => {
   keys[e.code] = true;
   if (e.code === "Space") e.preventDefault();
   if (e.code === "KeyR") startReload();
-  if (state.running && e.code >= "Digit1" && e.code <= "Digit5") {
+  if (state.running && e.code >= "Digit1" && e.code <= "Digit6") {
     const slot = e.code.charCodeAt(5) - 49;
     if (slot < WEAPONS.length) {
       state.weapon = slot;
