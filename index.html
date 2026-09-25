@@ -247,9 +247,9 @@
     <div class="card" id="menuCard">
       <div class="tag">Single-page breakfast FPS</div>
       <h1>Brunch Raid</h1>
-      <p>Pack a kit, then hit the diner. Choose <b>exactly 2</b> of the 6 weapons. Start drops you on the lot for wave 1.</p>
+      <p>Pack a kit, then hit the diner. Choose <b>exactly 3</b> of the 7 weapons. Start drops you on the lot for wave 1.</p>
       <div class="loadout" id="loadout"></div>
-      <div id="loadoutHint">Pick 2 weapons</div>
+      <div id="loadoutHint">Pick 3 weapons</div>
       <div class="controls">
         <div><b>WASD</b> free move</div>
         <div><b>Space</b> jump</div>
@@ -321,7 +321,9 @@ const ARMORY = [
   { name: "Espresso SMG", ammoName: "shots", blurb: "Caffeinated spray", max: 28, mag: 28, reserve: 84, dmg: 12, spread: 0.035, pellets: 1, rpm: 780, reload: 1.05, range: 18, kick: 4, color: "#3b2418" },
   { name: "Pancake Frisbee", ammoName: "cakes", blurb: "Thrown stack, heavy hit", max: 5, mag: 5, reserve: 15, dmg: 48, spread: 0.006, pellets: 1, rpm: 95, reload: 1.2, range: 30, kick: 10, color: "#f2b33a", projectile: true },
   { name: "Maple Marksman", ammoName: "rounds", blurb: "Bolt-action, Shift to 2x scope", max: 5, mag: 5, reserve: 15, dmg: 96, spread: 0.004, pellets: 1, rpm: 30, reload: 1.55, range: 52, kick: 16, color: "#8a3a1a", scope: true },
+  { name: "Link Launcher", ammoName: "links", blurb: "Sausage rockets, heavy splash", max: 4, mag: 4, reserve: 12, dmg: 118, spread: 0.008, pellets: 1, rpm: 20, reload: 3, range: 42, kick: 22, color: "#c45c2c", projectile: true, splash: 4.8 },
 ];
+const KIT = 3;
 const WEAPONS = [];
 const picked = new Set();
 
@@ -329,7 +331,7 @@ const ENEMY_KINDS = [
   { name: "Hangry Egg", hp: 40, speed: 2.4, dmg: 8, score: 80, radius: 0.42, height: 1.15 },
   { name: "Rogue Sausage", hp: 70, speed: 3.0, dmg: 11, score: 120, radius: 0.38, height: 0.62 },
   { name: "Cereal Haunt", hp: 32, speed: 2.8, dmg: 6, score: 100, radius: 0.4, height: 1.55 },
-  { name: "Avocado Brute", hp: 120, speed: 1.7, dmg: 16, score: 180, radius: 0.55, height: 0.9 },
+  { name: "Watermelon Brute", hp: 120, speed: 1.7, dmg: 16, score: 180, radius: 0.55, height: 0.9 },
   { name: "Waffle Stack", hp: 90, speed: 1.9, dmg: 13, score: 150, radius: 0.48, height: 0.95 },
   { name: "Coffee Creep", hp: 50, speed: 2.6, dmg: 9, score: 110, radius: 0.4, height: 1.05 },
 ];
@@ -464,12 +466,25 @@ function forSolidsNear(x, z, r, fn) {
   return false;
 }
 
+function cornerR(s) {
+  return Math.min(0.26, (s.maxx - s.minx) * 0.34, (s.maxz - s.minz) * 0.34);
+}
+
+function closestOnSolid(s, x, z) {
+  const cr = cornerR(s);
+  return {
+    x: Math.max(s.minx + cr, Math.min(x, s.maxx - cr)),
+    z: Math.max(s.minz + cr, Math.min(z, s.maxz - cr)),
+  };
+}
+
 function overlapsXZ(s, x, z, r) {
-  const nx = Math.max(s.minx, Math.min(x, s.maxx));
-  const nz = Math.max(s.minz, Math.min(z, s.maxz));
-  const dx = x - nx;
-  const dz = z - nz;
-  return dx * dx + dz * dz < r * r;
+  const cr = cornerR(s);
+  const c = closestOnSolid(s, x, z);
+  const dx = x - c.x;
+  const dz = z - c.z;
+  const lim = r + cr;
+  return dx * dx + dz * dz < lim * lim;
 }
 
 function blockedAt(x, z, r, feetY = 0, bodyH = PLAYER_H) {
@@ -544,28 +559,9 @@ function tryMove(nx, nz, r) {
 }
 
 function unstickPlayer() {
-  let x = player.position.x;
-  let z = player.position.z;
-  const y = player.position.y;
-  const r = RADIUS + 0.02;
-  for (let n = 0; n < 8; n++) {
-    let hit = null;
-    forSolidsNear(x, z, r, (s) => {
-      if (!s.block || !overlapsXZ(s, x, z, r)) return false;
-      if (y + PLAYER_H <= s.miny + 0.06 || y >= s.maxy - 0.04) return false;
-      hit = s;
-      return true;
-    });
-    if (!hit) break;
-    const midX = (hit.minx + hit.maxx) * 0.5;
-    const midZ = (hit.minz + hit.maxz) * 0.5;
-    const px = x < midX ? x - (hit.minx - r) : (hit.maxx + r) - x;
-    const pz = z < midZ ? z - (hit.minz - r) : (hit.maxz + r) - z;
-    if (px <= pz) x = x < midX ? hit.minx - r - 0.04 : hit.maxx + r + 0.04;
-    else z = z < midZ ? hit.minz - r - 0.04 : hit.maxz + r + 0.04;
-  }
-  player.position.x = x;
-  player.position.z = z;
+  const off = nudgeOut(player.position.x, player.position.z, RADIUS + 0.02, player.position.y, PLAYER_H);
+  player.position.x = off.x;
+  player.position.z = off.z;
 }
 
 function blockedByPlayer(x, z, r) {
@@ -590,32 +586,39 @@ function blockedByEnemy(self, x, z, y) {
 }
 
 function nudgeOut(x, z, r, y, bodyH) {
-  for (let n = 0; n < 5; n++) {
+  for (let n = 0; n < 8; n++) {
     let hit = null;
-    forSolidsNear(x, z, r, (s) => {
+    let worst = 0;
+    forSolidsNear(x, z, r + 0.3, (s) => {
       if (!s.block || !overlapsXZ(s, x, z, r)) return false;
       if (y + bodyH <= s.miny + 0.06 || y >= s.maxy - 0.04) return false;
-      hit = s;
-      return true;
+      const cr = cornerR(s);
+      const c = closestOnSolid(s, x, z);
+      const pen = r + cr + 0.03 - Math.hypot(x - c.x, z - c.z);
+      if (pen > worst) {
+        worst = pen;
+        hit = s;
+      }
+      return false;
     });
     if (!hit) break;
-    const cx = Math.max(hit.minx, Math.min(x, hit.maxx));
-    const cz = Math.max(hit.minz, Math.min(z, hit.maxz));
-    let dx = x - cx;
-    let dz = z - cz;
+    const cr = cornerR(hit);
+    const c = closestOnSolid(hit, x, z);
+    let dx = x - c.x;
+    let dz = z - c.z;
     const len = Math.hypot(dx, dz);
+    const need = r + cr + 0.03;
     if (len < 1e-5) {
-      const left = x - hit.minx;
-      const right = hit.maxx - x;
-      const back = z - hit.minz;
-      const fwd = hit.maxz - z;
+      const left = x - (hit.minx + cr);
+      const right = (hit.maxx - cr) - x;
+      const back = z - (hit.minz + cr);
+      const fwd = (hit.maxz - cr) - z;
       const m = Math.min(left, right, back, fwd);
-      if (m === left) x = hit.minx - r - 0.04;
-      else if (m === right) x = hit.maxx + r + 0.04;
-      else if (m === back) z = hit.minz - r - 0.04;
-      else z = hit.maxz + r + 0.04;
+      if (m === left) x = hit.minx - r - 0.03;
+      else if (m === right) x = hit.maxx + r + 0.03;
+      else if (m === back) z = hit.minz - r - 0.03;
+      else z = hit.maxz + r + 0.03;
     } else {
-      const need = r + 0.04;
       x += (dx / len) * (need - len);
       z += (dz / len) * (need - len);
     }
@@ -624,9 +627,9 @@ function nudgeOut(x, z, r, y, bodyH) {
 }
 
 function tryEnemyMove(e, nx, nz) {
-  const r = e.radius * 0.58;
+  const r = e.radius * 0.46;
   const body = Math.max(0.95, e.height * 0.85);
-  const jammed = (x, z, y) => blockedAt(x, z, r, y, body) || blockedByPlayer(x, z, r) || blockedByEnemy(e, x, z, y);
+  const jammed = (x, z, y) => blockedAt(x, z, r, y, body) || blockedByPlayer(x, z, r);
   let x = e.mesh.position.x;
   let z = e.mesh.position.z;
   let y = e.floorY;
@@ -648,6 +651,46 @@ function tryEnemyMove(e, nx, nz) {
       z = nz;
       y = step;
     }
+  }
+
+  if (x === e.mesh.position.x && z === e.mesh.position.z) {
+    const sp = Math.hypot(nx - e.mesh.position.x, nz - e.mesh.position.z) || 0.1;
+    const ang = Math.atan2(nz - e.mesh.position.z, nx - e.mesh.position.x);
+    for (const a of [0.8, -0.8, 1.25, -1.25]) {
+      const tx = e.mesh.position.x + Math.cos(ang + a) * sp;
+      const tz = e.mesh.position.z + Math.sin(ang + a) * sp;
+      if (!jammed(tx, tz, y)) {
+        x = tx;
+        z = tz;
+        break;
+      }
+      if (!jammed(tx, e.mesh.position.z, y)) { x = tx; break; }
+      if (!jammed(e.mesh.position.x, tz, y)) { z = tz; break; }
+    }
+  }
+
+  if (blockedByEnemy(e, x, z, y)) {
+    let px = 0;
+    let pz = 0;
+    const inner = e.radius * 0.5;
+    for (let i = 0; i < enemies.length; i++) {
+      const o = enemies[i];
+      if (o === e || o.dead) continue;
+      if (Math.abs(o.floorY - y) > 0.85) continue;
+      const dx = x - o.mesh.position.x;
+      const dz = z - o.mesh.position.z;
+      const min = inner + o.radius * 0.5;
+      const d2 = dx * dx + dz * dz;
+      if (d2 < min * min && d2 > 1e-6) {
+        const d = Math.sqrt(d2);
+        px += (dx / d) * (min - d + 0.02);
+        pz += (dz / d) * (min - d + 0.02);
+      }
+    }
+    const sx = x + px;
+    const sz = z + pz;
+    if (!jammed(sx, z, y)) x = sx;
+    if (!jammed(x, sz, y)) z = sz;
   }
 
   const off = nudgeOut(x, z, r, y, body);
@@ -1005,7 +1048,17 @@ function buildWeapons() {
   sniper.add(wmesh(new THREE.CylinderGeometry(0.015, 0.015, 0.02, 10), 0x3d6b4a, 0, 0.052, -0.14, 1.57, 0, 0, 0.3));
   sniper.add(wmesh(new THREE.BoxGeometry(0.018, 0.012, 0.04), 0xc45c32, 0, 0.038, 0.02));
 
-  weaponModels.push(toast, bacon, shotgun, smg, cakes, sniper);
+  const rocket = new THREE.Group();
+  rocket.add(wmesh(new THREE.CylinderGeometry(0.028, 0.032, 0.34, 10), 0x4a2a16, 0, 0.024, -0.12, 1.57, 0, 0, 0.35));
+  rocket.add(wmesh(new THREE.CylinderGeometry(0.034, 0.034, 0.08, 10), 0x2a160c, 0, 0.024, -0.3, 1.57, 0, 0, 0.4));
+  rocket.add(wmesh(new THREE.BoxGeometry(0.04, 0.034, 0.14), 0x6b3a1f, 0, 0.02, 0.06));
+  rocket.add(wmesh(new THREE.BoxGeometry(0.028, 0.08, 0.036), 0x5a2f18, 0.008, -0.034, 0.08));
+  rocket.add(wmesh(new THREE.BoxGeometry(0.05, 0.018, 0.05), 0xc9d4dc, 0, 0.048, 0.02, 0, 0, 0, 0.5));
+  rocket.add(wmesh(new THREE.CapsuleGeometry(0.016, 0.1, 4, 8), 0xc45c2c, 0, 0.024, -0.4, 1.57, 0, 0));
+  rocket.add(wmesh(new THREE.CapsuleGeometry(0.014, 0.08, 4, 6), 0xb84a22, 0.006, 0.032, -0.48, 1.5, 0.08, 0));
+  rocket.add(wmesh(new THREE.BoxGeometry(0.02, 0.012, 0.03), 0xf2b33a, 0.012, 0.04, -0.02));
+
+  weaponModels.push(toast, bacon, shotgun, smg, cakes, sniper, rocket);
   for (const g of weaponModels) wepHands.add(g);
   wepHands.scale.setScalar(1.5);
 }
@@ -1038,15 +1091,15 @@ function place(w, h, d, material, x, yBottom, z, flags) {
   addSolid(x, z, w, d, yBottom, yBottom + h, flags);
 }
 
-function addStairs(x0, z0, axis, sign, steps, rise, run, width, material, startY = 0) {
+function addStairs(x0, z0, axis, sign, steps, rise, run, width, material, startY = 0, pad = 0.28) {
   const rail = new THREE.MeshStandardMaterial({ color: 0x5a2f18, roughness: 0.7 });
   const pts = [{ x: x0, z: z0, y: startY }];
   for (let i = 0; i < steps; i++) {
     const y = startY + i * rise;
     const x = axis === "x" ? x0 + sign * (i * run + run / 2) : x0;
     const z = axis === "z" ? z0 + sign * (i * run + run / 2) : z0;
-    const w = axis === "x" ? run + 0.28 : width;
-    const d = axis === "z" ? run + 0.28 : width;
+    const w = axis === "x" ? run + pad : width;
+    const d = axis === "z" ? run + pad : width;
     place(w, rise, d, material, x, y, z, { block: false, stand: true });
     pts.push({ x, z, y: startY + (i + 1) * rise });
     if (i > 0) {
@@ -1123,15 +1176,24 @@ function makeTextures() {
     }
   });
   const tile = tex((g, w, h) => {
-    g.fillStyle = "#c9a06a";
+    g.fillStyle = "#8a5a32";
     g.fillRect(0, 0, w, h);
-    const tw = w / 4, th = h / 3;
-    for (let y = 0; y < 3; y++) {
+    const tw = w / 4, th = h / 4;
+    for (let y = 0; y < 4; y++) {
       for (let x = 0; x < 4; x++) {
-        g.fillStyle = (x + y) % 2 ? "#f7e6c8" : "#e8c48a";
+        const warm = (x + y) % 2;
+        g.fillStyle = warm ? "#f3dfb4" : "#e2c086";
         g.fillRect(x * tw + 3, y * th + 3, tw - 6, th - 6);
+        g.fillStyle = warm ? "rgba(255,240,200,0.28)" : "rgba(90,50,20,0.12)";
+        g.fillRect(x * tw + 8, y * th + 8, tw - 22, 7);
+        g.strokeStyle = "rgba(70,38,16,0.35)";
+        g.strokeRect(x * tw + 3.5, y * th + 3.5, tw - 7, th - 7);
       }
     }
+    g.fillStyle = "#5a2f18";
+    g.fillRect(0, h * 0.72, w, 4);
+    g.fillStyle = "#c43c2c";
+    g.fillRect(0, h * 0.72 + 4, w, 5);
   });
   const wood = tex((g, w, h) => {
     g.fillStyle = "#6b3a1f";
@@ -1221,7 +1283,7 @@ function addBooth(x, z, rotY, woodMat, seatMat, yBase = 0) {
   g.position.set(x, yBase, z);
   g.rotation.y = rotY;
   scene.add(g);
-  addSolidOriented(x, z, 1.8, 2.4, yBase, yBase + 1.15, rotY);
+  addSolidOriented(x, z, 1.52, 2.05, yBase, yBase + 1.15, rotY);
 }
 
 function addDinerTable(x, z, yBase, woodMat, chrome) {
@@ -1233,7 +1295,7 @@ function addDinerTable(x, z, yBase, woodMat, chrome) {
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 0.74, 8), chrome);
   pole.position.set(x, yBase + 0.4, z);
   scene.add(top, lip, pole);
-  addSolid(x, z, 1.4, 1.4, yBase, yBase + 0.82);
+  addSolid(x, z, 1.08, 1.08, yBase, yBase + 0.82);
   for (const [sx, sz] of [[0.72, 0.55], [-0.72, 0.55], [0, -0.78]]) {
     const stool = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.18, 0.1, 10), new THREE.MeshStandardMaterial({ color: 0xc43c2c }));
     stool.position.set(x + sx, yBase + 0.5, z + sz);
@@ -1276,6 +1338,59 @@ function addUmbrella(x, z) {
   addSolid(x, z, 0.5, 0.5, 0, 0.32, { stand: false });
 }
 
+function inPlayLot(x, z) {
+  const p = 2.6;
+  if (x >= -28 + p && x <= 28 - p && z >= -28 + p && z <= 28 - p) return true;
+  if (x >= -50 + p && x <= 4 - p && z >= -40 + p && z <= 12 - p) return true;
+  return false;
+}
+
+function addWoodsBorder() {
+  const bark = new THREE.MeshStandardMaterial({ color: 0x5a3a22, roughness: 0.88 });
+  const leafA = new THREE.MeshStandardMaterial({ color: 0x2d6a30, roughness: 0.72 });
+  const leafB = new THREE.MeshStandardMaterial({ color: 0x3f7d38, roughness: 0.68 });
+  const hedge = new THREE.MeshStandardMaterial({ color: 0x1f4f24, roughness: 0.82 });
+  const trunkGeo = new THREE.CylinderGeometry(0.16, 0.22, 2.5, 7);
+  const crownGeo = new THREE.SphereGeometry(1.05, 8, 6);
+  const puffGeo = new THREE.SphereGeometry(0.48, 7, 5);
+
+  function hedgeSeg(x0, z0, x1, z1) {
+    const dx = x1 - x0;
+    const dz = z1 - z0;
+    const len = Math.hypot(dx, dz);
+    const cx = (x0 + x1) * 0.5;
+    const cz = (z0 + z1) * 0.5;
+    if (Math.abs(dx) >= Math.abs(dz)) place(len + 1.1, 2.05, 1.45, hedge, cx, 0, cz, { stand: false });
+    else place(1.45, 2.05, len + 1.1, hedge, cx, 0, cz, { stand: false });
+    const n = Math.max(1, Math.round(len / 2.3));
+    for (let i = 0; i <= n; i++) {
+      const t = i / n;
+      const x = x0 + dx * t + Math.sin(i * 2.3) * 0.18;
+      const z = z0 + dz * t + Math.cos(i * 1.8) * 0.18;
+      const trunk = new THREE.Mesh(trunkGeo, bark);
+      trunk.position.set(x, 1.25, z);
+      const crown = new THREE.Mesh(crownGeo, i % 2 ? leafA : leafB);
+      crown.position.set(x, 3.15, z);
+      crown.scale.set(1 + (i % 3) * 0.08, 0.95, 1);
+      const side = new THREE.Mesh(crownGeo, leafB);
+      side.position.set(x + 0.45, 2.75, z - 0.15);
+      side.scale.set(0.62, 0.55, 0.62);
+      const puff = new THREE.Mesh(puffGeo, leafA);
+      puff.position.set(x + (i % 2 ? 0.35 : -0.3), 1.05, z + 0.2);
+      scene.add(trunk, crown, side, puff);
+    }
+  }
+
+  hedgeSeg(-49.4, -39.4, 3.4, -39.4);
+  hedgeSeg(3.4, -39.4, 3.4, -27.4);
+  hedgeSeg(3.4, -27.4, 27.4, -27.4);
+  hedgeSeg(27.4, -27.4, 27.4, 27.4);
+  hedgeSeg(27.4, 27.4, -27.4, 27.4);
+  hedgeSeg(-27.4, 27.4, -27.4, 11.4);
+  hedgeSeg(-27.4, 11.4, -49.4, 11.4);
+  hedgeSeg(-49.4, 11.4, -49.4, -39.4);
+}
+
 function addPlanter(x, z, yBase = 0) {
   const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.26, 0.4, 10), new THREE.MeshStandardMaterial({ color: 0xc43c2c }));
   pot.position.set(x, yBase + 0.2, z);
@@ -1306,6 +1421,16 @@ function addKitchen(woodMat, tileMat, chrome) {
   place(8.8, 3.05, 0.38, tileMat, 13.4, 0, -21.2, { stand: false });
   place(0.38, 3.05, 8, tileMat, 18.5, 0, -14.4, { stand: false });
 
+  const trim = new THREE.MeshStandardMaterial({ color: 0x7a4526, roughness: 0.55 });
+  const creamTrim = new THREE.MeshStandardMaterial({ color: 0xf6e6c8, roughness: 0.7 });
+  box(6.7, 0.1, 0.08, creamTrim, -5.8, 0.92, -7.76);
+  box(6.7, 0.1, 0.08, creamTrim, 5.8, 0.92, -7.76);
+  box(6.7, 0.12, 0.1, trim, -5.8, 2.98, -7.76);
+  box(6.7, 0.12, 0.1, trim, 5.8, 2.98, -7.76);
+  box(5.2, 0.1, 0.08, trim, 0, 2.98, -7.74);
+  box(9.7, 0.12, 0.1, trim, 13.6, 2.98, -7.32);
+  box(8.9, 0.12, 0.1, trim, 13.4, 2.98, -20.96);
+
   place(7.2, 0.95, 0.85, steel, -6.6, 0, -19.8);
   place(7.2, 0.95, 0.85, steel, 6.6, 0, -19.8);
   place(1.15, 2.15, 0.95, steel, -8.1, 0, -12.4, { stand: false });
@@ -1318,7 +1443,6 @@ function addKitchen(woodMat, tileMat, chrome) {
   place(2.4, 0.95, 0.8, steel, -3.2, 0, -16.6);
   place(2.4, 0.95, 0.8, steel, 3.2, 0, -16.6);
   place(3.4, 0.95, 1.15, steel, 0, 0, -14.2);
-  place(3.8, 1.0, 0.7, woodMat, 0, 0, -9.35);
 
   for (let i = 0; i < 5; i++) {
     const pan = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.14, 0.05, 10), steel);
@@ -1362,14 +1486,44 @@ function addCantina(deckY, woodMat, patioMap) {
   const ax = -23;
   const az = -14;
   const plaster = tex((g, w, h) => {
-    g.fillStyle = "#c45c32";
+    const grd = g.createLinearGradient(0, 0, 0, h);
+    grd.addColorStop(0, "#d46a3c");
+    grd.addColorStop(0.45, "#c45c32");
+    grd.addColorStop(1, "#a34424");
+    g.fillStyle = grd;
     g.fillRect(0, 0, w, h);
-    for (let i = 0; i < 80; i++) {
-      g.fillStyle = i % 2 ? "rgba(255,210,160,0.08)" : "rgba(90,30,16,0.1)";
-      g.fillRect((i * 37) % w, (i * 53) % h, 18, 10);
+    for (let i = 0; i < 140; i++) {
+      g.fillStyle = i % 3 ? "rgba(255,220,170,0.07)" : "rgba(70,22,10,0.1)";
+      g.beginPath();
+      g.ellipse((i * 47) % w, (i * 31) % h, 10 + (i % 5), 6, i * 0.4, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.strokeStyle = "rgba(90,30,16,0.12)";
+    for (let y = 18; y < h; y += 22) {
+      g.beginPath();
+      g.moveTo(0, y);
+      g.bezierCurveTo(w * 0.3, y - 3, w * 0.7, y + 3, w, y);
+      g.stroke();
     }
   });
-  const stucco = mat(plaster, 0xffffff, 2.2, 1.6);
+  const talavera = tex((g, w, h) => {
+    g.fillStyle = "#f3e6c4";
+    g.fillRect(0, 0, w, h);
+    const s = w / 4;
+    for (let y = 0; y < 4; y++) {
+      for (let x = 0; x < 4; x++) {
+        const px = x * s, py = y * s;
+        g.fillStyle = (x + y) % 2 ? "#15706c" : "#c45c32";
+        g.fillRect(px + 4, py + 4, s - 8, s - 8);
+        g.fillStyle = "#f3e6c4";
+        g.fillRect(px + s * 0.35, py + s * 0.35, s * 0.3, s * 0.3);
+        g.strokeStyle = "#d6de55";
+        g.strokeRect(px + 8, py + 8, s - 16, s - 16);
+      }
+    }
+  });
+  const stucco = mat(plaster, 0xffffff, 2.4, 1.8);
+  const dado = mat(talavera, 0xffffff, 1.8, 0.55);
   const teal = new THREE.MeshStandardMaterial({ color: 0x15706c, roughness: 0.38 });
   const ink = new THREE.MeshStandardMaterial({ color: 0x1b2430, roughness: 0.62 });
   const lime = new THREE.MeshStandardMaterial({ color: 0xd6de55, roughness: 0.5 });
@@ -1384,24 +1538,42 @@ function addCantina(deckY, woodMat, patioMap) {
 
   function shell(w, d, x, z) {
     place(w, 3.05, d, stucco, x, 0, z, { stand: false });
-    place(w + (d > w ? 0.05 : 0), 0.78, d + (w >= d ? 0.05 : 0), cream, x, 0, z, { stand: false });
-    place(w, 0.16, d, teal, x, 2.89, z, { stand: false });
+    const alongX = w >= d;
+    box(alongX ? w : w + 0.1, 0.92, alongX ? d + 0.1 : d, dado, x, 0.46, z);
+    box(alongX ? w + 0.02 : w + 0.12, 0.07, alongX ? d + 0.12 : d + 0.02, cream, x, 0.94, z);
+    box(alongX ? w + 0.02 : w + 0.1, 0.18, alongX ? d + 0.1 : d + 0.02, teal, x, 2.99, z);
+    box(alongX ? w : w + 0.06, 0.07, alongX ? d + 0.06 : d, cream, x, 2.86, z);
+    if (alongX) {
+      for (const ox of [-w * 0.32, w * 0.32]) {
+        if (w < 2.2) break;
+        box(0.16, 3.05, d + 0.12, cream, x + ox, 1.525, z);
+        box(0.2, 0.1, d + 0.16, teal, x + ox, 3.08, z);
+      }
+    } else {
+      for (const oz of [-d * 0.32, d * 0.32]) {
+        if (d < 2.2) break;
+        box(w + 0.12, 3.05, 0.16, cream, x, 1.525, z + oz);
+        box(w + 0.16, 0.1, 0.2, teal, x, 3.08, z + oz);
+      }
+    }
   }
   function winX(x, z) {
-    place(1.55, 0.7, 0.48, cream, x, 0, z, { stand: false });
-    place(1.55, 0.28, 0.48, teal, x, 0.7, z, { stand: false });
-    place(0.16, 1.42, 0.48, teal, x - 0.7, 0.98, z, { stand: false });
-    place(0.16, 1.42, 0.48, teal, x + 0.7, 0.98, z, { stand: false });
-    place(1.55, 0.38, 0.48, teal, x, 2.4, z, { stand: false });
-    place(1.55, 0.27, 0.48, stucco, x, 2.78, z, { stand: false });
+    place(1.55, 0.7, 0.42, cream, x, 0, z, { stand: false });
+    box(1.62, 0.12, 0.52, teal, x, 0.76, z);
+    box(0.12, 1.48, 0.52, teal, x - 0.74, 1.52, z);
+    box(0.12, 1.48, 0.52, teal, x + 0.74, 1.52, z);
+    box(1.62, 0.14, 0.52, lime, x, 2.32, z);
+    place(1.55, 0.62, 0.42, stucco, x, 2.43, z, { stand: false });
+    box(1.55, 0.16, 0.5, teal, x, 2.98, z);
   }
   function winZ(x, z) {
-    place(0.48, 0.7, 1.55, cream, x, 0, z, { stand: false });
-    place(0.48, 0.28, 1.55, teal, x, 0.7, z, { stand: false });
-    place(0.48, 1.42, 0.16, teal, x, 0.98, z - 0.7, { stand: false });
-    place(0.48, 1.42, 0.16, teal, x, 0.98, z + 0.7, { stand: false });
-    place(0.48, 0.38, 1.55, teal, x, 2.4, z, { stand: false });
-    place(0.48, 0.27, 1.55, stucco, x, 2.78, z, { stand: false });
+    place(0.42, 0.7, 1.55, cream, x, 0, z, { stand: false });
+    box(0.52, 0.12, 1.62, teal, x, 0.76, z);
+    box(0.52, 1.48, 0.12, teal, x, 1.52, z - 0.74);
+    box(0.52, 1.48, 0.12, teal, x, 1.52, z + 0.74);
+    box(0.52, 0.14, 1.62, lime, x, 2.32, z);
+    place(0.42, 0.62, 1.55, stucco, x, 2.43, z, { stand: false });
+    box(0.5, 0.16, 1.55, teal, x, 2.98, z);
   }
   function cactus(x, z, h = 0.7) {
     const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.11, h, 4, 8), new THREE.MeshStandardMaterial({ color: 0x3d7a38 }));
@@ -1424,14 +1596,15 @@ function addCantina(deckY, woodMat, patioMap) {
     scene.add(bulb, cap);
   }
 
-  place(14.6, 0.42, 12.6, clay, ax, deckY - 0.42, az);
+  place(14.6, 0.42, 11.6, clay, ax, deckY - 0.42, az - 0.5);
+  place(10.35, 0.42, 1.0, clay, ax + 2.125, deckY - 0.42, -8.2);
+  place(1.45, 0.42, 1.0, clay, ax - 6.575, deckY - 0.42, -8.2);
   place(15.4, 0.2, 0.55, teal, ax, deckY, az - 6.45, { stand: false });
   place(0.55, 0.2, 13.4, teal, ax - 7.25, deckY, az, { stand: false });
-  place(0.55, 0.2, 4.0, teal, ax + 7.25, deckY, az - 4.35, { stand: false });
-  place(0.55, 0.2, 4.0, teal, ax + 7.25, deckY, az + 4.35, { stand: false });
-  place(1.35, 0.2, 0.55, teal, ax - 6.4, deckY, az + 6.45, { stand: false });
-  place(1.25, 0.2, 0.55, teal, ax - 2.55, deckY, az + 6.45, { stand: false });
-  place(4.8, 0.2, 0.55, teal, ax + 4.7, deckY, az + 6.45, { stand: false });
+  place(0.55, 0.2, 3.2, teal, ax + 7.25, deckY, az - 4.7, { stand: false });
+  place(0.55, 0.2, 4.3, teal, ax + 7.25, deckY, az + 4.15, { stand: false });
+  place(1.2, 0.2, 0.55, teal, ax - 6.65, deckY, az + 6.45, { stand: false });
+  place(4.9, 0.2, 0.55, teal, ax + 4.75, deckY, az + 6.45, { stand: false });
 
   for (const [cx, cz] of [[-6.95, -5.95], [6.95, -5.95], [-6.95, 5.95], [6.95, 5.95]]) {
     place(0.62, 3.2, 0.62, teal, ax + cx, 0, az + cz, { stand: false });
@@ -1444,19 +1617,19 @@ function addCantina(deckY, woodMat, patioMap) {
   shell(0.46, 4.85, ax - 7.0, az - 3.4);
   winZ(ax - 7.0, az);
   shell(0.46, 4.85, ax - 7.0, az + 3.4);
-  shell(1.45, 0.46, ax - 6.2, az + 6.0);
-  shell(1.35, 0.46, ax - 2.5, az + 6.0);
-  shell(2.05, 0.46, ax + 2.8, az + 6.0);
+  shell(1.2, 0.46, ax - 6.65, az + 6.0);
+  shell(0.7, 0.46, ax - 2.4, az + 6.0);
+  shell(1.6, 0.46, ax + 3.1, az + 6.0);
   winX(ax + 4.55, az + 6.0);
-  shell(1.65, 0.46, ax + 6.15, az + 6.0);
-  shell(0.46, 3.55, ax + 7.0, az - 3.85);
-  shell(0.46, 3.55, ax + 7.0, az + 3.85);
+  shell(1.5, 0.46, ax + 6.25, az + 6.0);
+  shell(0.46, 3.2, ax + 7.0, az - 4.65);
+  shell(0.46, 3.9, ax + 7.0, az + 3.95);
 
-  box(0.2, 2.25, 0.5, teal, ax - 1.7, 1.125, az + 6.0);
-  box(0.2, 2.25, 0.5, teal, ax + 1.7, 1.125, az + 6.0);
-  box(3.6, 0.28, 0.55, teal, ax, 2.39, az + 6.0);
-  box(3.6, 0.52, 0.55, stucco, ax, 2.79, az + 6.0);
-  place(3.5, 0.08, 0.7, cream, ax, 0, az + 6.15);
+  box(0.2, 2.25, 0.5, teal, ax - 2.15, 1.125, az + 6.0);
+  box(0.2, 2.25, 0.5, teal, ax + 2.15, 1.125, az + 6.0);
+  box(4.5, 0.28, 0.55, teal, ax, 2.39, az + 6.0);
+  box(4.5, 0.52, 0.55, stucco, ax, 2.79, az + 6.0);
+  box(3.8, 0.08, 0.55, cream, ax, 0.04, az + 6.05);
 
   for (let i = 0; i < 9; i++) {
     box(0.42, 0.07, 1.7, i % 2 ? teal : lime, ax - 1.68 + i * 0.42, 2.42, az + 6.85);
@@ -1464,10 +1637,11 @@ function addCantina(deckY, woodMat, patioMap) {
   box(0.1, 2.2, 0.1, rust, ax - 1.7, 1.1, az + 6.85);
   box(0.1, 2.2, 0.1, rust, ax + 1.7, 1.1, az + 6.85);
 
-  addStairs(ax - 4.4, -1.7, "z", -1, 9, 0.35, 0.68, 2.15, clay);
+  addStairs(ax - 4.4, -3.87, "z", -1, 9, 0.35, 0.58, 2.35, clay, 0, 0.08);
+  place(2.5, 0.14, 1.7, clay, ax - 4.4, deckY - 0.14, -9.15, { block: false, stand: true });
   place(9.4, 0.42, 4.6, woodMat, -13.2, deckY - 0.42, -14.5);
-  addRail(9.4, 0.14, -13.2, deckY, -16.72, teal);
-  addRail(9.4, 0.14, -13.2, deckY, -12.28, teal);
+  addRail(6.4, 0.14, -12.5, deckY, -16.72, teal);
+  addRail(6.4, 0.14, -12.5, deckY, -12.28, teal);
 
   place(5.8, 1.02, 1.15, teal, ax, deckY, az + 3.15);
   place(5.6, 0.08, 1.05, cream, ax, deckY + 1.02, az + 3.15);
@@ -1479,18 +1653,95 @@ function addCantina(deckY, woodMat, patioMap) {
   for (const [sx, sz] of [[-3.5, -0.7], [-3.5, -2.7], [3.5, -0.7], [3.5, -2.7]]) {
     place(0.38, 0.68, 0.38, ink, ax + sx, deckY, az + sz);
   }
-  place(2.0, 0.9, 0.85, ink, ax - 4.6, 0, az + 2.2);
-  place(2.0, 0.9, 0.85, rust, ax + 4.6, 0, az + 2.2);
-  place(1.6, 0.85, 1.6, cream, ax, 0, az - 1.8);
-  for (const [sx, sz] of [[-0.85, -1.1], [0.85, -1.1], [0, -2.5]]) {
-    const stool = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.16, 0.12, 10), rust);
-    stool.position.set(ax + sx, 0.5, az + sz);
-    scene.add(stool);
+  const seatMat = new THREE.MeshStandardMaterial({ color: 0x9a2e22, roughness: 0.62 });
+  const slatMat = new THREE.MeshStandardMaterial({ color: 0x0f5c58, roughness: 0.42 });
+  const legMat = new THREE.MeshStandardMaterial({ color: 0xc9a06a, roughness: 0.45, metalness: 0.18 });
+  function chair(x, z, rotY = 0) {
+    const g = new THREE.Group();
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.07, 0.42), seatMat);
+    seat.position.y = 0.48;
+    const pad = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.04, 0.36), rust);
+    pad.position.y = 0.53;
+    const back = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.42, 0.05), slatMat);
+    back.position.set(0, 0.76, -0.18);
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.04, 0.05), cream);
+    rail.position.set(0, 0.98, -0.18);
+    g.add(seat, pad, back, rail);
+    for (const [lx, lz] of [[-0.16, -0.16], [0.16, -0.16], [-0.16, 0.16], [0.16, 0.16]]) {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.035, 0.46, 6), legMat);
+      leg.position.set(lx, 0.23, lz);
+      g.add(leg);
+    }
+    g.position.set(x, 0, z);
+    g.rotation.y = rotY;
+    scene.add(g);
+    addSolid(x, z, 0.4, 0.4, 0, 0.82, { stand: false });
+  }
+  function cantinaTable(x, z, chairs = []) {
+    const top = new THREE.Mesh(new THREE.CylinderGeometry(0.58, 0.58, 0.07, 12), cream);
+    top.position.set(x, 0.78, z);
+    const lip = new THREE.Mesh(new THREE.TorusGeometry(0.58, 0.025, 6, 16), teal);
+    lip.rotation.x = Math.PI / 2;
+    lip.position.set(x, 0.82, z);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.74, 8), rust);
+    pole.position.set(x, 0.38, z);
+    const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.08, 0.08, 8), new THREE.MeshStandardMaterial({ color: 0xc43c2c }));
+    bowl.position.set(x + 0.12, 0.86, z + 0.04);
+    const limeW = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), lime);
+    limeW.position.set(x - 0.1, 0.86, z - 0.06);
+    scene.add(top, lip, pole, bowl, limeW);
+    addSolid(x, z, 1.05, 1.05, 0, 0.82);
+    for (const [ox, oz, rot] of chairs) chair(x + ox, z + oz, rot);
   }
 
-  cactus(ax - 6.3, az + 6.75, 0.72);
-  cactus(ax + 6.3, az + 6.75, 0.55);
-  cactus(ax - 7.7, az - 2.2, 0.9);
+  place(8.2, 1.08, 1.2, ink, ax + 0.4, 0, az - 4.35);
+  box(8.4, 0.1, 1.35, cream, ax + 0.4, 1.13, az - 4.35);
+  box(8.0, 0.05, 0.08, rust, ax + 0.4, 0.28, az - 3.68);
+  box(7.6, 1.35, 0.28, teal, ax + 0.4, 1.55, az - 5.55);
+  box(7.4, 0.08, 0.32, cream, ax + 0.4, 2.26, az - 5.55);
+  for (const ox of [-3.2, -1.6, 0, 1.6, 3.2]) {
+    box(0.14, 0.42, 0.14, [0xc43c2c, 0x15706c, 0xd6de55, 0xf2b33a, 0xa33a1c][(ox + 3.2) / 1.6 | 0], ax + 0.4 + ox, 1.4, az - 5.42);
+    box(0.08, 0.22, 0.08, cream, ax + 0.4 + ox + 0.16, 1.32, az - 5.4);
+  }
+  box(1.15, 0.95, 0.55, rust, ax - 4.1, 1.55, az - 5.45);
+  box(0.7, 0.08, 0.7, cream, ax - 4.1, 2.08, az - 5.45);
+  for (const ox of [-2.8, -1.4, 0, 1.4, 2.6]) {
+    const stool = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.16, 0.08, 10), seatMat);
+    stool.position.set(ax + 0.4 + ox, 0.58, az - 3.35);
+    const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.04, 10), rust);
+    pad.position.set(ax + 0.4 + ox, 0.64, az - 3.35);
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.045, 0.54, 8), teal);
+    leg.position.set(ax + 0.4 + ox, 0.28, az - 3.35);
+    scene.add(stool, pad, leg);
+    addSolid(ax + 0.4 + ox, az - 3.35, 0.38, 0.38, 0, 0.68, { stand: false });
+  }
+
+  cantinaTable(ax + 3.4, az - 2.7, [[0.7, 0.15, -1.2], [-0.15, 0.72, 3.1], [0.15, -0.72, 0.2]]);
+  cantinaTable(ax - 3.2, az - 2.6, [[0.68, 0.2, -1.4], [-0.2, 0.7, 3.0]]);
+  cantinaTable(ax + 3.2, az + 2.55, [[0.7, 0.05, -1.6], [-0.1, 0.7, 3.2], [0.2, -0.68, 0.15]]);
+
+  const rug = new THREE.Mesh(new THREE.PlaneGeometry(5.6, 3.4), dado);
+  rug.rotation.x = -Math.PI / 2;
+  rug.position.set(ax, 0.03, az + 0.4);
+  scene.add(rug);
+  for (let i = 0; i < 7; i++) {
+    box(0.55, 0.04, 0.28, i % 2 ? teal : rust, ax - 2.1 + i * 0.7, 2.55, az + 0.2);
+  }
+  box(3.4, 0.9, 0.12, ink, ax + 0.2, 1.85, az - 5.72);
+  const menuCard = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.7), cream);
+  menuCard.position.set(ax + 0.2, 1.9, az - 5.64);
+  scene.add(menuCard);
+  for (const [ox, oy] of [[-5.8, 1.7], [-5.8, 2.15], [5.4, 1.65], [5.4, 2.1]]) {
+    box(0.55, 0.12, 0.12, rust, ax + ox, oy, az - 0.2);
+  }
+  box(0.08, 1.1, 0.08, rust, ax - 0.9, 2.0, az + 5.35);
+  box(0.22, 0.55, 0.08, new THREE.MeshStandardMaterial({ color: 0xc43c2c, roughness: 0.5 }), ax - 0.9, 1.85, az + 5.35);
+  box(0.08, 1.1, 0.08, rust, ax + 0.9, 2.0, az + 5.35);
+  box(0.22, 0.55, 0.08, new THREE.MeshStandardMaterial({ color: 0xd6de55, roughness: 0.5 }), ax + 0.9, 1.85, az + 5.35);
+
+  cactus(ax - 8.2, az + 7.5, 0.72);
+  cactus(ax + 7.6, az + 7.5, 0.55);
+  cactus(ax - 8.0, az - 2.2, 0.9);
   for (const [lx, ly, lz, col] of [
     [-5.4, deckY + 0.42, 5.7, 0xff6a32], [0, deckY + 0.42, 5.7, 0xffc94a], [5.4, deckY + 0.42, 5.7, 0xff6a32],
     [-5.4, deckY + 0.42, -5.5, 0xffc94a], [5.4, deckY + 0.42, -5.5, 0xff6a32],
@@ -1522,7 +1773,9 @@ function addCantina(deckY, woodMat, patioMap) {
 
   const glow = new THREE.PointLight(0xff8a40, 18, 15);
   glow.position.set(ax, 2.7, az + 1.5);
-  scene.add(glow);
+  const barGlow = new THREE.PointLight(0xffc26a, 14, 11);
+  barGlow.position.set(ax + 0.4, 2.4, az - 3.8);
+  scene.add(glow, barGlow);
 }
 
 function buildDiner() {
@@ -1563,6 +1816,8 @@ function buildDiner() {
   addWindow(5.2, -21.4, true, tileMat);
   place(0.45, 3.05, 10, tileMat, -8.8, 0, -16.8, { stand: false });
   place(0.45, 3.05, 6, tileMat, 8.8, 0, -18.4, { stand: false });
+  box(18.6, 0.12, 0.1, woodMat, 0, 2.98, -21.16);
+  box(0.1, 0.12, 10.1, woodMat, -8.56, 2.98, -16.8);
   addDeck(9.4, 6.4, 13.6, deckY, -18.35, woodMat, chrome);
 
   addKitchen(woodMat, tileMat, chrome);
@@ -1576,8 +1831,8 @@ function buildDiner() {
   addDeck(7.2, 7.2, 18.6, 4.95, -11.5, cream, chrome);
 
   addRail(18, 0.16, 0, deckY, -21.4, chrome);
-  addRail(0.16, 3.8, -8.9, deckY, -19.7, chrome);
-  addRail(0.16, 3.8, -8.9, deckY, -10.9, chrome);
+  addRail(0.16, 3.5, -8.9, deckY, -19.85, chrome);
+  addRail(0.16, 3.5, -8.9, deckY, -10.55, chrome);
   addRail(6.2, 0.16, -5.8, deckY, -7.55, chrome);
   addRail(6.2, 0.16, 5.8, deckY, -7.55, chrome);
   addRail(0.16, 6.4, 18.8, deckY, -14.6, chrome);
@@ -1663,6 +1918,8 @@ function buildDiner() {
     scene.add(bulb);
   }
 
+  addWoodsBorder();
+
   scene.add(new THREE.HemisphereLight(0xcfeaff, 0x6b3a1f, 1.05));
   const sun = new THREE.DirectionalLight(0xfff6e0, 1.25);
   sun.position.set(18, 28, 8);
@@ -1671,6 +1928,30 @@ function buildDiner() {
 
 function enemyMat(color, extras = {}) {
   return new THREE.MeshStandardMaterial({ color, roughness: 0.62, metalness: 0.04, ...extras });
+}
+
+let melonTex;
+function melonMap() {
+  if (melonTex) return melonTex;
+  melonTex = tex((ctx, w, h) => {
+    ctx.fillStyle = "#145228";
+    ctx.fillRect(0, 0, w, h);
+    for (let i = 0; i < 8; i++) {
+      const x = (i / 8) * w;
+      const stripe = 18 + (i % 2) * 6;
+      ctx.fillStyle = i % 2 ? "#2f8a3c" : "#0e3d1c";
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.bezierCurveTo(x + 10, h * 0.3, x - 8, h * 0.7, x + 4, h);
+      ctx.lineTo(x + stripe, h);
+      ctx.bezierCurveTo(x + stripe - 8, h * 0.7, x + stripe + 10, h * 0.3, x + stripe, 0);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.fillStyle = "rgba(180,230,140,0.18)";
+    ctx.fillRect(0, 0, w, 10);
+  }, 128, 128);
+  return melonTex;
 }
 
 let waffleTex;
@@ -1755,14 +2036,20 @@ function makeEnemyMesh(kind) {
     part(g, new THREE.CapsuleGeometry(0.028, 0.42, 4, 6), 0xc9d4dc, 0.22, 1.08, 0.08, 0.4, 0, 1.1, { metalness: 0.55, roughness: 0.25 });
     part(g, new THREE.SphereGeometry(0.05, 8, 8), 0xc9d4dc, 0.38, 0.98, 0.02, 0, 0, 0, { metalness: 0.55 });
     foodEyes(g, 0.98, 0.32, 0.12, 0.05);
-  } else if (kind.name === "Avocado Brute") {
-    const skin = part(g, new THREE.SphereGeometry(0.44, 16, 12), 0x2f5a22, 0, 0.4, 0);
-    skin.scale.set(1.2, 0.88, 1.05);
-    const flesh = part(g, new THREE.SphereGeometry(0.36, 14, 12), 0x8fbf4a, 0.04, 0.42, 0.08);
-    flesh.scale.set(1.05, 0.72, 0.85);
-    part(g, new THREE.SphereGeometry(0.17, 10, 8), 0x8a5a28, 0.08, 0.46, 0.22);
-    part(g, new THREE.SphereGeometry(0.05, 6, 6), 0x5a3818, 0.1, 0.5, 0.3);
-    foodEyes(g, 0.52, 0.34, 0.14, 0.055);
+  } else if (kind.name === "Watermelon Brute") {
+    const rind = part(g, new THREE.SphereGeometry(0.44, 18, 14), 0xffffff, 0, 0.4, 0, 0, 0, 0, { map: melonMap(), roughness: 0.52 });
+    rind.scale.set(1.18, 0.9, 1.06);
+    const flesh = part(g, new THREE.SphereGeometry(0.36, 14, 12), 0xd32f2f, 0, 0.4, 0.14);
+    flesh.scale.set(0.98, 0.76, 0.5);
+    part(g, new THREE.TorusGeometry(0.33, 0.024, 6, 18), 0xe8f0c4, 0, 0.4, 0.3);
+    for (const s of [[-0.1, 0.48, 0.31], [0.12, 0.42, 0.31], [0.02, 0.33, 0.32], [-0.14, 0.36, 0.3], [0.16, 0.5, 0.3]]) {
+      const seed = part(g, new THREE.SphereGeometry(0.032, 6, 6), 0x1a1008, s[0], s[1], s[2]);
+      seed.scale.set(0.65, 1.2, 0.35);
+    }
+    part(g, new THREE.CylinderGeometry(0.028, 0.04, 0.12, 8), 0x5a3818, 0.02, 0.86, -0.05);
+    const leaf = part(g, new THREE.SphereGeometry(0.08, 8, 6), 0x4caf50, 0.09, 0.9, -0.03);
+    leaf.scale.set(1.45, 0.22, 0.65);
+    foodEyes(g, 0.54, 0.32, 0.13, 0.055);
   } else if (kind.name === "Waffle Stack") {
     const wmat = enemyMat(0xe0a24a, { map: waffleMap() });
     for (let i = 0; i < 3; i++) {
@@ -1848,19 +2135,20 @@ function renderLoadout() {
     b.innerHTML = w.name + "<small>" + w.blurb + " · " + w.max + " " + w.ammoName + "</small>";
     b.addEventListener("click", () => {
       if (picked.has(i)) picked.delete(i);
-      else if (picked.size < 2) picked.add(i);
+      else if (picked.size < KIT) picked.add(i);
       renderLoadout();
     });
-    if (picked.size >= 2 && !picked.has(i)) b.classList.add("locked");
+    if (picked.size >= KIT && !picked.has(i)) b.classList.add("locked");
     loadoutBox.appendChild(b);
   });
   fillKit();
-  loadoutHint.textContent = picked.size === 0
-    ? "Pick 2 weapons"
-    : picked.size === 1
-      ? "Pick 1 more — only 2 can go in"
-      : "2 packed — start when you’re ready";
-  startBtn.disabled = picked.size !== 2;
+  const left = KIT - picked.size;
+  loadoutHint.textContent = left === KIT
+    ? "Pick 3 weapons"
+    : left > 0
+      ? "Pick " + left + " more — only 3 can go in"
+      : "3 packed — start when you’re ready";
+  startBtn.disabled = picked.size !== KIT;
 }
 
 function showLoadout() {
@@ -1880,6 +2168,64 @@ function announce(text) {
 const sparkGeo = new THREE.SphereGeometry(0.08, 6, 6);
 const cakeGeo = new THREE.CylinderGeometry(0.28, 0.28, 0.08, 12);
 const cakeMat = new THREE.MeshLambertMaterial({ color: 0xf2b33a });
+const linkGeo = new THREE.CapsuleGeometry(0.1, 0.18, 4, 8);
+const linkRingGeo = new THREE.TorusGeometry(0.1, 0.016, 6, 8);
+const linkMat = new THREE.MeshStandardMaterial({ color: 0xc45c2c, roughness: 0.42, emissive: 0x4a1408, emissiveIntensity: 0.22 });
+const linkDark = new THREE.MeshStandardMaterial({ color: 0x6b2a16, roughness: 0.5 });
+const linkFlameMat = new THREE.MeshBasicMaterial({ color: 0xff7a28 });
+
+function makeSausageRocket() {
+  const g = new THREE.Group();
+  for (let i = 0; i < 3; i++) {
+    const link = new THREE.Mesh(linkGeo, linkMat);
+    link.rotation.x = Math.PI / 2;
+    link.position.z = 0.26 - i * 0.24;
+    g.add(link);
+    const ring = new THREE.Mesh(linkRingGeo, linkDark);
+    ring.position.z = 0.14 - i * 0.24;
+    g.add(ring);
+  }
+  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.2, 8), linkFlameMat);
+  flame.rotation.x = -Math.PI / 2;
+  flame.position.z = -0.42;
+  g.add(flame);
+  return g;
+}
+
+const trailColors = [0xff7a28, 0xffc14a, 0xb38a6a];
+function emitRocketTrail(pos, vel) {
+  const len = vel.length() || 1;
+  tmp2.copy(pos).addScaledVector(vel, -0.48 / len);
+  for (let i = 0; i < 2; i++) {
+    const col = trailColors[i + (Math.random() < 0.35 ? 1 : 0)];
+    let mat = sparkMatCache.get(col);
+    if (!mat) {
+      mat = new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.85 });
+      sparkMatCache.set(col, mat);
+    }
+    const mesh = sparkPool.pop() || new THREE.Mesh(sparkGeo, mat);
+    mesh.material = mat;
+    mesh.scale.setScalar(0.85 + Math.random() * 0.7);
+    mesh.position.set(
+      tmp2.x + (Math.random() - 0.5) * 0.1,
+      tmp2.y + (Math.random() - 0.5) * 0.08,
+      tmp2.z + (Math.random() - 0.5) * 0.1
+    );
+    mesh.visible = true;
+    scene.add(mesh);
+    particles.push({
+      mesh,
+      vel: new THREE.Vector3(
+        -vel.x * 0.06 + (Math.random() - 0.5) * 0.7,
+        -vel.y * 0.06 + 0.35 + Math.random() * 0.4,
+        -vel.z * 0.06 + (Math.random() - 0.5) * 0.7
+      ),
+      life: 0.26 + Math.random() * 0.2,
+      trail: true,
+    });
+  }
+}
+
 const sparkPool = [];
 const sparkMatCache = new Map();
 
@@ -1892,6 +2238,7 @@ function burst(pos, color, n) {
   for (let i = 0; i < n; i++) {
     const mesh = sparkPool.pop() || new THREE.Mesh(sparkGeo, mat);
     mesh.material = mat;
+    mesh.scale.setScalar(1);
     mesh.position.copy(pos);
     mesh.visible = true;
     scene.add(mesh);
@@ -1916,12 +2263,13 @@ function collectSpawnPoints() {
   for (const n of navNodes) {
     if (n.y > 4.4) continue;
     if (n.x * n.x + n.z * n.z < 16) continue;
+    if (!inPlayLot(n.x, n.z)) continue;
     if (!spawnClear(n.x, n.y, n.z)) continue;
     spawnPoints.push(new THREE.Vector3(n.x, n.y, n.z));
   }
   if (!spawnPoints.length) {
     for (const [x, y, z] of [[0, 0, 16], [8, 0, 16], [-8, 0, 16], [0, 3.15, -12]]) {
-      if (spawnClear(x, y, z)) spawnPoints.push(new THREE.Vector3(x, y, z));
+      if (inPlayLot(x, z) && spawnClear(x, y, z)) spawnPoints.push(new THREE.Vector3(x, y, z));
     }
   }
 }
@@ -1989,7 +2337,7 @@ function spawnEnemy() {
 }
 
 function waveCount() {
-  return 4 + ((state.wave - 1) % 5) * 2;
+  return Math.round(8 * Math.pow(1.5, (state.wave - 1) % 5));
 }
 
 function spawnWave() {
@@ -2020,6 +2368,23 @@ function damageEnemy(e, dmg) {
     burst(e.mesh.position, 0xfff1c9, 16);
     e.dead = true;
     removeEnemy(e);
+  }
+}
+
+function splashAt(pos, dmg, radius) {
+  burst(pos, 0xc45c2c, 22);
+  burst(pos, 0xf2b33a, 16);
+  burst(pos, 0xfff1c9, 10);
+  const r2 = radius * radius;
+  for (const e of enemies) {
+    if (e.dead) continue;
+    tmp.copy(e.mesh.position);
+    tmp.y += e.height * 0.5;
+    const d2 = pos.distanceToSquared(tmp);
+    if (d2 >= r2) continue;
+    const t = Math.sqrt(d2) / radius;
+    const fall = (1 - t) * (1 - t);
+    damageEnemy(e, Math.max(1, Math.round(dmg * fall)));
   }
 }
 
@@ -2057,16 +2422,23 @@ function shoot() {
   if (w.projectile) {
     camera.getWorldDirection(lookDir);
     const origin = camera.getWorldPosition(tmp);
-    const mesh = new THREE.Mesh(cakeGeo, cakeMat);
-    mesh.rotation.x = Math.PI / 2;
-    mesh.position.copy(origin).addScaledVector(lookDir, 0.8);
+    const splash = w.splash || 0;
+    const mesh = splash ? makeSausageRocket() : new THREE.Mesh(cakeGeo, cakeMat);
+    if (!splash) mesh.rotation.x = Math.PI / 2;
+    mesh.position.copy(origin).addScaledVector(lookDir, splash ? 1.05 : 0.8);
+    if (splash) {
+      tmp2.copy(mesh.position).add(lookDir);
+      mesh.lookAt(tmp2);
+    }
     scene.add(mesh);
     projectiles.push({
       mesh,
-      vel: lookDir.clone().multiplyScalar(16),
-      life: 1.5,
+      vel: lookDir.clone().multiplyScalar(splash ? 26 : 16),
+      life: splash ? 2.1 : 1.5,
       dmg: w.dmg,
-      radius: 0.28,
+      radius: splash ? 0.22 : 0.28,
+      splash,
+      trailWait: 0,
     });
     return;
   }
@@ -2295,19 +2667,40 @@ function tickActors(dt) {
   for (const p of projectiles) {
     p.life -= dt;
     p.mesh.position.addScaledVector(p.vel, dt);
-    p.mesh.rotation.z += dt * 8;
-    if (blockedAt(p.mesh.position.x, p.mesh.position.z, p.radius, p.mesh.position.y, 0.2) || p.mesh.position.y < 0.05 || p.mesh.position.y > 18) {
-      p.life = 0;
-      burst(p.mesh.position, 0xf2b33a, 10);
-      continue;
+    if (p.splash) {
+      tmp.copy(p.mesh.position).add(p.vel);
+      p.mesh.lookAt(tmp);
+      p.trailWait -= dt;
+      if (p.trailWait <= 0 && p.life > 0) {
+        p.trailWait = 0.026;
+        emitRocketTrail(p.mesh.position, p.vel);
+      }
+    } else {
+      p.mesh.rotation.z += dt * 8;
     }
-    for (const e of enemies) {
-      tmp.copy(e.mesh.position);
-      tmp.y += e.height * 0.5;
-      if (p.mesh.position.distanceTo(tmp) < e.radius + p.radius) {
-        damageEnemy(e, p.dmg);
-        p.life = 0;
-        break;
+    let boom = p.life <= 0;
+    let hitE = null;
+    if (!boom && (blockedAt(p.mesh.position.x, p.mesh.position.z, p.radius, p.mesh.position.y, 0.2) || p.mesh.position.y < 0.05 || p.mesh.position.y > 18)) {
+      boom = true;
+    }
+    if (!boom) {
+      for (const e of enemies) {
+        if (e.dead) continue;
+        tmp.copy(e.mesh.position);
+        tmp.y += e.height * 0.5;
+        if (p.mesh.position.distanceTo(tmp) < e.radius + p.radius) {
+          hitE = e;
+          boom = true;
+          break;
+        }
+      }
+    }
+    if (boom) {
+      p.life = 0;
+      if (p.splash) splashAt(p.mesh.position, p.dmg, p.splash);
+      else {
+        if (hitE) damageEnemy(hitE, p.dmg);
+        burst(p.mesh.position, 0xf2b33a, 10);
       }
     }
   }
@@ -2320,7 +2713,12 @@ function tickActors(dt) {
 
   for (const p of particles) {
     p.life -= dt;
-    p.vel.y -= 8 * dt;
+    if (p.trail) {
+      p.vel.multiplyScalar(0.9);
+      p.mesh.scale.multiplyScalar(0.96);
+    } else {
+      p.vel.y -= 8 * dt;
+    }
     p.mesh.position.addScaledVector(p.vel, dt);
   }
   for (let i = particles.length - 1; i >= 0; i--) {
@@ -2328,7 +2726,8 @@ function tickActors(dt) {
       const mesh = particles[i].mesh;
       scene.remove(mesh);
       mesh.visible = false;
-      if (sparkPool.length < 80) sparkPool.push(mesh);
+      mesh.scale.setScalar(1);
+      if (sparkPool.length < 120) sparkPool.push(mesh);
       particles.splice(i, 1);
     }
   }
@@ -2411,7 +2810,7 @@ function frame(t) {
 }
 
 function start() {
-  if (picked.size !== 2) return;
+  if (picked.size !== KIT) return;
   resetGame();
   overlay.style.display = "none";
   pauseEl.style.display = "none";
@@ -2464,7 +2863,7 @@ document.addEventListener("keydown", (e) => {
   keys[e.code] = true;
   if (e.code === "Space") e.preventDefault();
   if (e.code === "KeyR") startReload();
-  if (state.running && e.code >= "Digit1" && e.code <= "Digit6") {
+  if (state.running && e.code >= "Digit1" && e.code <= "Digit9") {
     const slot = e.code.charCodeAt(5) - 49;
     if (slot < WEAPONS.length) {
       state.weapon = slot;
