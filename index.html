@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Brunch Raid — Breakfast FPS</title>
+  <title>Agent Scramble — Breakfast FPS</title>
   <style>
     :root { --cream: #f6e6c8; }
     html, body {
@@ -246,7 +246,7 @@
   <div id="overlay">
     <div class="card" id="menuCard">
       <div class="tag">Single-page breakfast FPS</div>
-      <h1>Brunch Raid</h1>
+      <h1>Agent Scramble</h1>
       <p>Pack a kit, then hit the diner. Choose <b>exactly 3</b> of the 7 weapons. Start drops you on the lot for wave 1.</p>
       <div class="loadout" id="loadout"></div>
       <div id="loadoutHint">Pick 3 weapons</div>
@@ -255,10 +255,10 @@
         <div><b>Space</b> jump</div>
         <div><b>Mouse</b> look around</div>
         <div><b>Click</b> fire</div>
-        <div><b>1–2 / scroll</b> swap kit</div>
-        <div><b>Shift</b> aim scope · <b>R</b> reload · <b>Esc</b> pause</div>
+        <div><b>1–3 / scroll</b> swap kit</div>
+        <div><b>Shift</b> aim · <b>R</b> reload · <b>Esc</b> pause</div>
       </div>
-      <button id="startBtn" disabled>Start brunch raid</button>
+      <button id="startBtn" disabled>Start Agent Scramble</button>
     </div>
     <div class="card" id="overCard">
       <h1>Burnt Toast</h1>
@@ -321,7 +321,7 @@ const ARMORY = [
   { name: "Espresso SMG", ammoName: "shots", blurb: "Caffeinated spray", max: 28, mag: 28, reserve: 84, dmg: 12, spread: 0.035, pellets: 1, rpm: 780, reload: 1.05, range: 18, kick: 4, color: "#3b2418" },
   { name: "Pancake Frisbee", ammoName: "cakes", blurb: "Thrown stack, heavy hit", max: 5, mag: 5, reserve: 15, dmg: 48, spread: 0.006, pellets: 1, rpm: 95, reload: 1.2, range: 30, kick: 10, color: "#f2b33a", projectile: true },
   { name: "Maple Marksman", ammoName: "rounds", blurb: "Bolt-action, Shift to 2x scope", max: 5, mag: 5, reserve: 15, dmg: 96, spread: 0.004, pellets: 1, rpm: 30, reload: 1.55, range: 52, kick: 16, color: "#8a3a1a", scope: true },
-  { name: "Link Launcher", ammoName: "links", blurb: "Sausage rockets, heavy splash", max: 4, mag: 4, reserve: 12, dmg: 118, spread: 0.008, pellets: 1, rpm: 20, reload: 3, range: 42, kick: 22, color: "#c45c2c", projectile: true, splash: 4.8 },
+  { name: "Link Launcher", ammoName: "links", blurb: "Shift 1.5x irons, sausage splash", max: 4, mag: 4, reserve: 12, dmg: 118, spread: 0.008, pellets: 1, rpm: 20, reload: 3, range: 42, kick: 22, color: "#c45c2c", projectile: true, splash: 4.8, zoom: 1.5, irons: true },
 ];
 const KIT = 3;
 const WEAPONS = [];
@@ -365,11 +365,15 @@ const state = {
   iframes: 0,
   vy: 0,
   grounded: true,
+  ads: 0,
 };
 
 const scene = new THREE.Scene();
 const BASE_FOV = 75;
-const SCOPE_FOV = 2 * Math.atan(Math.tan((BASE_FOV * Math.PI / 180) * 0.5) / 2) * 180 / Math.PI;
+function zoomFov(zoom) {
+  return 2 * Math.atan(Math.tan((BASE_FOV * Math.PI / 180) * 0.5) / zoom) * 180 / Math.PI;
+}
+const SCOPE_FOV = zoomFov(2);
 const camera = new THREE.PerspectiveCamera(BASE_FOV, innerWidth / innerHeight, 0.12, 180);
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
 renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.25));
@@ -1056,7 +1060,13 @@ function buildWeapons() {
   rocket.add(wmesh(new THREE.BoxGeometry(0.05, 0.018, 0.05), 0xc9d4dc, 0, 0.048, 0.02, 0, 0, 0, 0.5));
   rocket.add(wmesh(new THREE.CapsuleGeometry(0.016, 0.1, 4, 8), 0xc45c2c, 0, 0.024, -0.4, 1.57, 0, 0));
   rocket.add(wmesh(new THREE.CapsuleGeometry(0.014, 0.08, 4, 6), 0xb84a22, 0.006, 0.032, -0.48, 1.5, 0.08, 0));
-  rocket.add(wmesh(new THREE.BoxGeometry(0.02, 0.012, 0.03), 0xf2b33a, 0.012, 0.04, -0.02));
+  rocket.add(wmesh(new THREE.BoxGeometry(0.028, 0.014, 0.012), 0x2a160c, 0, 0.05, 0.045));
+  rocket.add(wmesh(new THREE.BoxGeometry(0.006, 0.016, 0.01), 0x1a100a, -0.01, 0.062, 0.045));
+  rocket.add(wmesh(new THREE.BoxGeometry(0.006, 0.016, 0.01), 0x1a100a, 0.01, 0.062, 0.045));
+  rocket.add(wmesh(new THREE.BoxGeometry(0.005, 0.022, 0.006), 0x3b2418, 0, 0.054, -0.29));
+  const tip = wmesh(new THREE.BoxGeometry(0.016, 0.012, 0.028), 0xf2b33a, 0, 0.042, -0.33);
+  rocket.add(tip);
+  rocket.userData.tip = tip;
 
   weaponModels.push(toast, bacon, shotgun, smg, cakes, sniper, rocket);
   for (const g of weaponModels) wepHands.add(g);
@@ -1410,11 +1420,16 @@ function addKitchen(woodMat, tileMat, chrome) {
   tileFloor.position.set(0, 0.02, -14.6);
   scene.add(tileFloor);
 
-  place(6.6, 3.05, 0.42, tileMat, -5.8, 0, -8.0, { stand: false });
-  place(6.6, 3.05, 0.42, tileMat, 5.8, 0, -8.0, { stand: false });
-  place(5.2, 0.48, 0.46, tileMat, 0, 2.57, -8.0, { stand: false });
-  place(0.42, 3.05, 0.42, tileMat, -2.35, 0, -8.15, { stand: false });
-  place(0.42, 3.05, 0.42, tileMat, 2.35, 0, -8.15, { stand: false });
+  box(6.6, 3.05, 0.42, tileMat, -5.8, 1.525, -8.0);
+  box(6.6, 3.05, 0.42, tileMat, 5.8, 1.525, -8.0);
+  addSolid(-6.45, -8.18, 5.3, 0.3, 0, 3.05, { stand: false });
+  addSolid(6.45, -8.18, 5.3, 0.3, 0, 3.05, { stand: false });
+  box(5.2, 0.48, 0.46, tileMat, 0, 2.81, -8.0);
+  addSolid(0, -8.22, 5.0, 0.28, 2.57, 3.05, { stand: false });
+  box(0.42, 3.05, 0.42, tileMat, -2.35, 1.525, -8.15);
+  box(0.42, 3.05, 0.42, tileMat, 2.35, 1.525, -8.15);
+  addSolid(-2.55, -8.28, 0.28, 0.24, 0, 3.05, { stand: false });
+  addSolid(2.55, -8.28, 0.28, 0.24, 0, 3.05, { stand: false });
 
   place(9.6, 3.05, 0.38, tileMat, 13.6, 0, -7.55, { stand: false });
   place(0.38, 3.05, 7.6, tileMat, 8.95, 0, -15.4, { stand: false });
@@ -1833,8 +1848,8 @@ function buildDiner() {
   addRail(18, 0.16, 0, deckY, -21.4, chrome);
   addRail(0.16, 3.5, -8.9, deckY, -19.85, chrome);
   addRail(0.16, 3.5, -8.9, deckY, -10.55, chrome);
-  addRail(6.2, 0.16, -5.8, deckY, -7.55, chrome);
-  addRail(6.2, 0.16, 5.8, deckY, -7.55, chrome);
+  addRail(5.4, 0.16, -6.3, deckY, -7.55, chrome);
+  addRail(5.4, 0.16, 6.3, deckY, -7.55, chrome);
   addRail(0.16, 6.4, 18.8, deckY, -14.6, chrome);
   addRail(7.2, 0.16, 18.6, 4.95, -15.05, chrome);
   addRail(7.2, 0.16, 18.6, 4.95, -7.95, chrome);
@@ -2090,8 +2105,15 @@ function currentWeapon() {
   return WEAPONS[state.weapon] || ARMORY[0];
 }
 
+function aimZoom() {
+  const w = currentWeapon();
+  if (w.zoom) return w.zoom;
+  if (w.scope) return 2;
+  return 1;
+}
+
 function isAiming() {
-  return !!(currentWeapon().scope && (keys.ShiftLeft || keys.ShiftRight) && state.running && !state.paused);
+  return !!(aimZoom() > 1 && (keys.ShiftLeft || keys.ShiftRight) && state.running && !state.paused);
 }
 
 function syncBoltCd() {
@@ -2105,10 +2127,11 @@ function syncBoltCd() {
 
 function applyZoom() {
   const ads = isAiming();
-  scopeEl.classList.toggle("on", ads);
+  const w = currentWeapon();
+  scopeEl.classList.toggle("on", !!(ads && w.scope));
   crosshairEl.style.opacity = ads ? "0" : "1";
   syncBoltCd();
-  const want = ads ? SCOPE_FOV : BASE_FOV;
+  const want = ads ? zoomFov(aimZoom()) : BASE_FOV;
   if (Math.abs(camera.fov - want) < 0.08) {
     if (camera.fov !== want) {
       camera.fov = want;
@@ -2421,11 +2444,11 @@ function shoot() {
   state.kick = w.kick;
   if (w.projectile) {
     camera.getWorldDirection(lookDir);
-    const origin = camera.getWorldPosition(tmp);
+    camera.getWorldPosition(tmp);
     const splash = w.splash || 0;
     const mesh = splash ? makeSausageRocket() : new THREE.Mesh(cakeGeo, cakeMat);
     if (!splash) mesh.rotation.x = Math.PI / 2;
-    mesh.position.copy(origin).addScaledVector(lookDir, splash ? 1.05 : 0.8);
+    mesh.position.copy(tmp).addScaledVector(lookDir, splash ? 1.05 : 0.8);
     if (splash) {
       tmp2.copy(mesh.position).add(lookDir);
       mesh.lookAt(tmp2);
@@ -2510,6 +2533,7 @@ function resetGame() {
   state.waveClear = 0;
   state.iframes = 2.4;
   state.kick = 0;
+  state.ads = 0;
   fillKit();
   WEAPONS.forEach((w) => { w.mag = w.max; w.reserve = w.max * (w.name === "Espresso SMG" ? 3 : 4); });
   clearWorldActors();
@@ -2755,20 +2779,32 @@ function tickActors(dt) {
 
 let hudCache = "";
 
+function poseWepHands() {
+  const held = currentWeapon();
+  const bobX = Math.sin(state.bob) * 0.012;
+  const bobY = Math.abs(Math.cos(state.bob)) * 0.01;
+  const wantAds = isAiming() ? 1 : 0;
+  state.ads += (wantAds - state.ads) * 0.24;
+  if (state.ads < 0.004) state.ads = 0;
+  const k = state.kick;
+  const hipX = -0.14 + bobX;
+  const hipY = -0.26 - bobY - k * 0.005;
+  const hipZ = -0.34 - k * 0.012;
+  const ironX = bobX * 0.12;
+  const ironY = -0.148 - bobY * 0.18 - k * 0.002;
+  const ironZ = -0.3 - k * 0.006;
+  const t = held.irons ? state.ads : 0;
+  wepHands.position.set(hipX + (ironX - hipX) * t, hipY + (ironY - hipY) * t, hipZ + (ironZ - hipZ) * t);
+  wepHands.rotation.set(0.16 + k * 0.008 - 0.14 * t, 0.1 - 0.1 * t, 0.04 - 0.04 * t);
+}
+
 function drawWeapon() {
   const held = currentWeapon();
   for (let i = 0; i < weaponModels.length; i++) {
     weaponModels[i].visible = ARMORY[i] === held && state.running;
   }
-  const bobX = Math.sin(state.bob) * 0.012;
-  const bobY = Math.abs(Math.cos(state.bob)) * 0.01;
-  if (isAiming()) {
-    wepHands.visible = false;
-  } else {
-    wepHands.visible = state.running;
-    wepHands.position.set(-0.14 + bobX, -0.26 - bobY - state.kick * 0.005, -0.34 - state.kick * 0.012);
-    wepHands.rotation.set(0.16 + state.kick * 0.008, 0.1, 0.04);
-  }
+  poseWepHands();
+  wepHands.visible = state.running && !(held.scope && state.ads > 0.55);
 }
 
 function syncHud() {
@@ -2848,7 +2884,7 @@ document.addEventListener("mousemove", (e) => {
   if (!state.running || state.paused) return;
   const locked = document.pointerLockElement === renderer.domElement;
   if (!locked && !state.mouseDown) return;
-  const zoom = isAiming() ? 2 : 1;
+  const zoom = isAiming() ? aimZoom() : 1;
   const sens = (locked ? MOUSE : 0.005) / zoom;
   state.yaw -= e.movementX * sens;
   state.pitch -= e.movementY * sens;

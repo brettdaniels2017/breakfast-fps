@@ -1,4 +1,4 @@
-# Brunch Raid
+# Agent Scramble
 
 A breakfast-themed first-person shooter in a single HTML page. You pack two weapons, then clear waves of leftovers across an open diner lot, a kitchen deck, and the Salsa Cantina next door.
 
@@ -18,7 +18,7 @@ Then open [http://127.0.0.1:8766/](http://127.0.0.1:8766/).
 ## How to play
 
 1. Pick **exactly 2** of the 6 weapons.
-2. Press **Start brunch raid**. Click the view if the browser asks for pointer lock.
+2. Press **Start Agent Scramble**. Click the view if the browser asks for pointer lock.
 3. Survive waves. After the last leftover dies, the next wave starts in **10 seconds**.
 4. If your stomach hits 0, that’s Burnt Toast — change kit and sit again.
 
