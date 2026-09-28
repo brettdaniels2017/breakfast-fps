@@ -1064,7 +1064,12 @@ function buildWeapons() {
   rocket.add(wmesh(new THREE.BoxGeometry(0.006, 0.016, 0.01), 0x1a100a, -0.01, 0.062, 0.045));
   rocket.add(wmesh(new THREE.BoxGeometry(0.006, 0.016, 0.01), 0x1a100a, 0.01, 0.062, 0.045));
   rocket.add(wmesh(new THREE.BoxGeometry(0.005, 0.022, 0.006), 0x3b2418, 0, 0.054, -0.29));
-  const tip = wmesh(new THREE.BoxGeometry(0.016, 0.012, 0.028), 0xf2b33a, 0, 0.042, -0.33);
+  rocket.add(wmesh(new THREE.BoxGeometry(0.0026, 0.052, 0.0026), 0x2a160c, 0, 0.072, -0.33));
+  const tip = new THREE.Mesh(
+    new THREE.SphereGeometry(0.0048, 8, 6),
+    new THREE.MeshBasicMaterial({ color: 0xf2b33a })
+  );
+  tip.position.set(0, 0.098, -0.335);
   rocket.add(tip);
   rocket.userData.tip = tip;
 
@@ -2915,6 +2920,18 @@ document.addEventListener("wheel", (e) => {
   state.reloading = 0;
   announce(currentWeapon().name);
 }, { passive: true });
+
+if (location.hostname === "127.0.0.1" || location.hostname === "localhost") {
+  let stamp = "";
+  setInterval(async () => {
+    try {
+      const r = await fetch(location.href.split("#")[0], { method: "HEAD", cache: "no-store" });
+      const next = (r.headers.get("Last-Modified") || "") + (r.headers.get("Content-Length") || "");
+      if (stamp && next && next !== stamp) location.reload();
+      stamp = next;
+    } catch (_) {}
+  }, 800);
+}
 
 buildDiner();
 buildNav();
