@@ -192,7 +192,7 @@
     }
     .mode-pick small { display: block; font-weight: 500; color: #e8c48a; margin-top: 3px; }
     .mode-pick.on { background: #5a2a18; border-color: #f2b33a; }
-    #basePanel { display: none; min-width: 120px; }
+    #basePanel, #minePanel { display: none; min-width: 120px; }
     #loadoutHint { font-size: 13px; color: #f2b33a; margin-bottom: 12px; }
     button:disabled { opacity: 0.4; cursor: not-allowed; }
     #overCard { display: none; }
@@ -255,6 +255,10 @@
         <div class="value" id="baseText">1000</div>
         <div class="meter"><span id="baseBar"></span></div>
       </div>
+      <div class="panel" id="minePanel">
+        <div class="label">Mines</div>
+        <div class="value" id="mineText">0</div>
+      </div>
     </div>
     <div id="crosshair"></div>
     <div id="boltCd"></div>
@@ -294,7 +298,7 @@
         <div><b>Mouse</b> look around</div>
         <div><b>Click</b> fire</div>
         <div><b>1–3 / scroll</b> swap kit</div>
-        <div><b>Shift</b> aim · <b>R</b> reload · <b>E</b> ORDER UP · <b>Esc</b> pause</div>
+        <div><b>Shift</b> aim · <b>R</b> reload · <b>E</b> ORDER UP / shop · <b>G</b> plant mine · <b>Esc</b> pause</div>
       </div>
       <button id="startBtn" disabled>Start Agent Scramble</button>
     </div>
@@ -343,6 +347,8 @@ const hudAmmo = document.getElementById("ammo");
 const hudBase = document.getElementById("baseText");
 const hudBaseBar = document.getElementById("baseBar");
 const basePanel = document.getElementById("basePanel");
+const hudMines = document.getElementById("mineText");
+const minePanel = document.getElementById("minePanel");
 const scopeEl = document.getElementById("scope");
 const crosshairEl = document.getElementById("crosshair");
 const boltCdEl = document.getElementById("boltCd");
@@ -414,18 +420,25 @@ const state = {
   didWave: false,
   waveHold: false,
   turretStock: 0,
+  mines: 0,
 };
 
 const HALL_HALF = 5;
 const HALL_LEN = 38;
 const KITCHEN_FRONT = -0.6;
-const TURRET_COST = 250;
+const TURRET_COSTS = [500, 1500];
 const TURRET_RANGE = 13.5;
+const MINE_COST = 200;
+const MINE_DMG = 130;
+const MINE_SPLASH = 2.5;
+const MINE_BAG = 8;
 const turretPads = [];
 const turrets = [];
+const mines = [];
 let waveBtn = null;
 let waveBtnGlow = null;
 let shopStand = null;
+let mineStand = null;
 const worldLayer = new THREE.Group();
 const scene = new THREE.Scene();
 scene.add(worldLayer);
@@ -2062,6 +2075,20 @@ function makeToasterMesh() {
   return g;
 }
 
+function makeMineMesh() {
+  const g = new THREE.Group();
+  const tin = new THREE.MeshStandardMaterial({ color: 0x8a9096, roughness: 0.32, metalness: 0.7 });
+  const jam = new THREE.MeshStandardMaterial({ color: 0x9c1c28, roughness: 0.45, emissive: 0x5a0810, emissiveIntensity: 0.25 });
+  const dish = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.3, 0.08, 16), tin);
+  dish.position.y = 0.04;
+  const filling = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.05, 16), jam);
+  filling.position.y = 0.08;
+  const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.12, 8), new THREE.MeshStandardMaterial({ color: 0xf2b33a, roughness: 0.4, metalness: 0.35 }));
+  pin.position.y = 0.16;
+  g.add(dish, filling, pin);
+  return g;
+}
+
 function addVisualBooth(side, z, vinyl, vinylDark, chrome, wood, cream, napkin) {
   const xw = side * (HALL_HALF - 0.08);
   const xs = side * (HALL_HALF - 0.78);
@@ -2121,7 +2148,7 @@ function addWaveButton(chrome, red) {
   labelB.rotation.y = Math.PI;
   g.add(plate, bezel, btn, label, labelB);
   g.position.set(HALL_HALF - 0.28, 1.42, 2.35);
-  g.rotation.y = -Math.PI / 2;
+  g.rotation.y = Math.PI / 2;
   scene.add(g);
   waveBtn = g;
   waveBtnGlow = glow;
@@ -2382,9 +2409,26 @@ function buildTower() {
     g.textAlign = "center";
     g.fillText("TOASTER TURRET", w / 2, h * 0.42);
     g.font = "bold 28px sans-serif";
-    g.fillText(TURRET_COST + " SCORE", w / 2, h * 0.78);
+    g.fillText("500 / 1500 SCORE", w / 2, h * 0.78);
   }, 512, 160);
-  twoFaceSign(1.8, 0.42, new THREE.MeshStandardMaterial({ map: shopTex, emissive: 0xff8a20, emissiveIntensity: 0.3 }), 2.4, 1.55, 9.35, Math.PI);
+  twoFaceSign(1.8, 0.42, new THREE.MeshStandardMaterial({ map: shopTex, emissive: 0xff8a20, emissiveIntensity: 0.3 }), 2.4, 2.22, 9.35, Math.PI);
+
+  const shopMine = makeMineMesh();
+  shopMine.position.set(-2.4, 0.94, 9.35);
+  shopMine.scale.setScalar(1.35);
+  scene.add(shopMine);
+  mineStand = shopMine;
+  const mineTex = tex((g, w, h) => {
+    g.fillStyle = "#2a120e";
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = "#f2b33a";
+    g.font = "bold 36px sans-serif";
+    g.textAlign = "center";
+    g.fillText("LANDMINE", w / 2, h * 0.42);
+    g.font = "bold 28px sans-serif";
+    g.fillText(MINE_COST + " SCORE", w / 2, h * 0.78);
+  }, 512, 160);
+  twoFaceSign(1.8, 0.42, new THREE.MeshStandardMaterial({ map: mineTex, emissive: 0xff8a20, emissiveIntensity: 0.3 }), -2.4, 2.22, 9.35, Math.PI);
 
   const neonTex = tex((g, w, h) => {
     g.fillStyle = "#2a120e";
@@ -2667,6 +2711,7 @@ function rebuildWorld() {
   waveBtn = null;
   waveBtnGlow = null;
   shopStand = null;
+  mineStand = null;
   withWorld(() => {
     if (state.mode === "tower") buildTower();
     else buildDiner();
@@ -2681,6 +2726,7 @@ function setMode(mode) {
   document.getElementById("modeRaid").classList.toggle("on", mode === "raid");
   document.getElementById("modeTower").classList.toggle("on", mode === "tower");
   basePanel.style.display = mode === "tower" ? "block" : "none";
+  minePanel.style.display = mode === "tower" ? "block" : "none";
 }
 
 function showLoadout() {
@@ -2902,6 +2948,17 @@ function lookingAtShop() {
   return lookingAtPos(tmp2.x, tmp2.y + 0.2, tmp2.z, 4.2, 0.62);
 }
 
+function lookingAtMineShop() {
+  if (!mineStand || state.mode !== "tower") return false;
+  mineStand.getWorldPosition(tmp2);
+  return lookingAtPos(tmp2.x, tmp2.y + 0.15, tmp2.z, 4.2, 0.62);
+}
+
+function nextTurretCost() {
+  const n = turretPads.filter((p) => p.filled).length;
+  return TURRET_COSTS[n];
+}
+
 function deployTurret(pad) {
   pad.filled = true;
   const mesh = makeToasterMesh();
@@ -2919,16 +2976,103 @@ function buyTurret() {
     announce("Max 2 Toaster Turrets");
     return true;
   }
-  if (state.score < TURRET_COST) {
-    announce("Need " + TURRET_COST + " score");
+  const cost = nextTurretCost();
+  if (state.score < cost) {
+    announce("Need " + cost + " score");
     return true;
   }
-  state.score -= TURRET_COST;
+  state.score -= cost;
   hudCache = "";
   syncHud();
   deployTurret(pad);
   announce(turrets.length === 1 ? "Toaster Turret deployed" : "Second Toaster Turret deployed");
   return true;
+}
+
+function buyMine() {
+  if (state.mode !== "tower" || !state.running || state.paused) return false;
+  if (!lookingAtMineShop()) return false;
+  if (state.mines >= MINE_BAG) {
+    announce("Mine bag full (" + MINE_BAG + ")");
+    return true;
+  }
+  if (state.score < MINE_COST) {
+    announce("Need " + MINE_COST + " score");
+    return true;
+  }
+  state.score -= MINE_COST;
+  state.mines++;
+  hudCache = "";
+  syncHud();
+  announce("Landmine +1  (" + state.mines + ")  · G to plant");
+  return true;
+}
+
+function plantMine() {
+  if (state.mode !== "tower" || !state.running || state.paused) return false;
+  if (state.mines < 1) return false;
+  camera.getWorldDirection(forward);
+  forward.y = 0;
+  if (forward.lengthSq() < 0.0001) forward.set(0, 0, -1);
+  else forward.normalize();
+  const x = player.position.x + forward.x * 1.35;
+  const z = player.position.z + forward.z * 1.35;
+  if (!inPlayLot(x, z) || z > 5.1) {
+    announce("Plant mines in the hallway");
+    return true;
+  }
+  for (const m of mines) {
+    if (Math.hypot(m.mesh.position.x - x, m.mesh.position.z - z) < 0.7) {
+      announce("Too close to another mine");
+      return true;
+    }
+  }
+  const mesh = makeMineMesh();
+  mesh.position.set(x, 0.02, z);
+  scene.add(mesh);
+  mines.push({ mesh, arm: 0.45 });
+  state.mines--;
+  hudCache = "";
+  syncHud();
+  announce("Landmine planted  (" + state.mines + " left)");
+  return true;
+}
+
+function detonateMine(m) {
+  const pos = m.mesh.position;
+  burst(pos, 0xc43c2c, 22);
+  burst(pos, 0xf2b33a, 14);
+  burst(pos, 0xfff1c9, 10);
+  for (const e of enemies) {
+    if (e.dead) continue;
+    const d = Math.hypot(e.mesh.position.x - pos.x, e.mesh.position.z - pos.z);
+    if (d <= 0.85) damageEnemy(e, MINE_DMG);
+    else if (d < MINE_SPLASH) {
+      const t = d / MINE_SPLASH;
+      damageEnemy(e, Math.max(8, Math.round(52 * (1 - t) * (1 - t))));
+    }
+  }
+  scene.remove(m.mesh);
+  m.dead = true;
+}
+
+function tickMines(dt) {
+  if (state.mode !== "tower") return;
+  for (const m of mines) {
+    if (m.dead) continue;
+    m.arm = Math.max(0, m.arm - dt);
+    if (m.arm > 0) continue;
+    for (const e of enemies) {
+      if (e.dead) continue;
+      if (Math.hypot(e.mesh.position.x - m.mesh.position.x, e.mesh.position.z - m.mesh.position.z) <= 0.72) {
+        detonateMine(m);
+        break;
+      }
+    }
+  }
+  for (let i = mines.length - 1; i >= 0; i--) {
+    if (mines[i].dead) mines.splice(i, 1);
+  }
 }
 
 function pressWaveButton() {
@@ -2947,7 +3091,7 @@ function pressWaveButton() {
 }
 
 function tryTowerUse() {
-  return buyTurret() || pressWaveButton();
+  return buyMine() || buyTurret() || pressWaveButton();
 }
 
 function tickTurrets(dt) {
@@ -2995,15 +3139,23 @@ function syncWaveBtn(dt) {
   if (useHint) {
     const show = state.mode === "tower" && state.running && !state.paused;
     let text = "";
-    if (show && lookingAtShop()) {
-      const left = turretPads.filter((p) => !p.filled).length;
-      text = left <= 0
+    if (show && lookingAtMineShop()) {
+      text = state.mines >= MINE_BAG
+        ? "Mine bag full (" + MINE_BAG + ")"
+        : state.score < MINE_COST
+          ? "Need " + MINE_COST + " score · Landmine"
+          : "E / Click · Buy Landmine (" + MINE_COST + ")";
+    } else if (show && lookingAtShop()) {
+      const cost = nextTurretCost();
+      text = cost == null
         ? "Toaster Turrets sold out (2/2)"
-        : state.score < TURRET_COST
-          ? "Need " + TURRET_COST + " score · Toaster Turret"
-          : "E / Click · Buy Toaster Turret (" + TURRET_COST + ")";
+        : state.score < cost
+          ? "Need " + cost + " score · Toaster Turret"
+          : "E / Click · Buy Toaster Turret (" + cost + ")";
     } else if (show && state.waveHold) {
       text = lookingAtWaveBtn() ? "E / Click · ORDER UP" : "ORDER UP on the kitchen wall starts the wave";
+    } else if (show && state.mines > 0) {
+      text = "G · plant landmine (" + state.mines + ")";
     }
     useHint.style.display = text ? "block" : "none";
     if (text) useHint.textContent = text;
@@ -3185,6 +3337,8 @@ function clearWorldActors() {
   for (const t of turrets) scene.remove(t.mesh);
   turrets.length = 0;
   for (const pad of turretPads) pad.filled = false;
+  for (const m of mines) scene.remove(m.mesh);
+  mines.length = 0;
 }
 
 function resetGame() {
@@ -3204,6 +3358,7 @@ function resetGame() {
   state.didWave = false;
   state.waveHold = false;
   state.turretStock = 0;
+  state.mines = 0;
   state.iframes = 2.4;
   state.kick = 0;
   state.ads = 0;
@@ -3306,6 +3461,7 @@ function update(dt) {
 
   tickActors(dt);
   tickTurrets(dt);
+  tickMines(dt);
   syncWaveBtn(dt);
 }
 
@@ -3504,7 +3660,7 @@ function drawWeapon() {
 function syncHud() {
   const w = currentWeapon();
   const ammo = state.reloading > 0 ? "reloading…" : w.mag + " / " + w.reserve + " " + w.ammoName;
-  const key = state.hp + "|" + state.baseHp + "|" + state.mode + "|" + state.score + "|" + state.kills + "|" + state.wave + "|" + w.name + "|" + ammo;
+  const key = state.hp + "|" + state.baseHp + "|" + state.mode + "|" + state.score + "|" + state.kills + "|" + state.wave + "|" + w.name + "|" + ammo + "|" + state.mines;
   if (key === hudCache) return;
   hudCache = key;
   hudHp.textContent = Math.ceil(state.hp);
@@ -3517,6 +3673,7 @@ function syncHud() {
   if (state.mode === "tower") {
     hudBase.textContent = Math.ceil(state.baseHp);
     hudBaseBar.style.width = (state.baseHp / 10) + "%";
+    hudMines.textContent = state.mines;
   }
 }
 
@@ -3601,6 +3758,7 @@ document.addEventListener("keydown", (e) => {
   if (e.code === "Space") e.preventDefault();
   if (e.code === "KeyR") startReload();
   if (e.code === "KeyE") tryTowerUse();
+  if (e.code === "KeyG") plantMine();
   if (state.running && e.code >= "Digit1" && e.code <= "Digit9") {
     const slot = e.code.charCodeAt(5) - 49;
     if (slot < WEAPONS.length) {
