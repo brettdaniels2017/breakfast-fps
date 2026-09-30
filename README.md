@@ -1,13 +1,13 @@
 # Agent Scramble
 
-**[Play](https://brettdaniels2017.github.io/breakfast-fps/)** · **[Promo](https://brettdaniels2017.github.io/agent-scramble/)**
+**[Promo](https://brettdaniels2017.github.io/breakfast-fps/)** · **[Play](https://brettdaniels2017.github.io/breakfast-fps/play.html)**
 
 A breakfast-themed first-person shooter in one HTML page. Pack **three** weapons, pick a mode, and keep leftovers off the lot.
 
 ## Play
 
-Play (public): **[https://brettdaniels2017.github.io/breakfast-fps/](https://brettdaniels2017.github.io/breakfast-fps/)**  
-Promo (public): **[https://brettdaniels2017.github.io/agent-scramble/](https://brettdaniels2017.github.io/agent-scramble/)**
+Promo (public): **[https://brettdaniels2017.github.io/breakfast-fps/](https://brettdaniels2017.github.io/breakfast-fps/)**  
+Play (public): **[https://brettdaniels2017.github.io/breakfast-fps/play.html](https://brettdaniels2017.github.io/breakfast-fps/play.html)**
 
 Click the game view if the browser asks for pointer lock. Pack exactly **3 of 7** guns, then start.
 
@@ -62,11 +62,11 @@ cd breakfast-fps
 python3 -m http.server 8766
 ```
 
-Then open [http://127.0.0.1:8766/](http://127.0.0.1:8766/).
+Then open [http://127.0.0.1:8766/](http://127.0.0.1:8766/) for the promo, or [http://127.0.0.1:8766/play.html](http://127.0.0.1:8766/play.html) for the game.
 
 ## Project
 
-Everything lives in `index.html`. Three.js r160 loads from unpkg via an import map.
+The promo lives in `index.html`. The game lives in `play.html`. Three.js r160 loads from unpkg via an import map.
 
 Repo: [brettdaniels2017/breakfast-fps](https://github.com/brettdaniels2017/breakfast-fps)
 
