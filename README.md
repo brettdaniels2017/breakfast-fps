@@ -1,12 +1,13 @@
 # Agent Scramble
 
-**[Play Agent Scramble](https://brettdaniels2017.github.io/breakfast-fps/)**
+**[Play](https://brettdaniels2017.github.io/breakfast-fps/)** · **[Promo](https://brettdaniels2017.github.io/agent-scramble/)**
 
 A breakfast-themed first-person shooter in one HTML page. Pack **three** weapons, pick a mode, and keep leftovers off the lot.
 
 ## Play
 
-GitHub Pages (public): **[https://brettdaniels2017.github.io/breakfast-fps/](https://brettdaniels2017.github.io/breakfast-fps/)**
+Play (public): **[https://brettdaniels2017.github.io/breakfast-fps/](https://brettdaniels2017.github.io/breakfast-fps/)**  
+Promo (public): **[https://brettdaniels2017.github.io/agent-scramble/](https://brettdaniels2017.github.io/agent-scramble/)**
 
 Click the game view if the browser asks for pointer lock. Pack exactly **3 of 7** guns, then start.
 
