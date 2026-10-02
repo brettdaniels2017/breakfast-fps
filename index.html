@@ -10,27 +10,36 @@
   <meta property="og:image" content="assets/shot-tower.jpg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --cream: #f6e6c8;
-      --foam: #fff6df;
-      --syrup: #6b3a1f;
-      --bacon: #c43c2c;
-      --bacon-hot: #d95440;
-      --yolk: #f2b33a;
-      --ink: #140e0a;
-      --card: #24160f;
-      --line: rgba(242, 179, 58, 0.38);
+      --cream: #e4c9a4;
+      --foam: #f6e2c0;
+      --muted: #c49a72;
+      --syrup: #3a160c;
+      --bacon: #8a1410;
+      --bacon-hot: #b51c16;
+      --yolk: #c48a18;
+      --yolk-hot: #e0a62a;
+      --ink: #070302;
+      --card: #160808;
+      --card-top: #2a1010;
+      --line: rgba(168, 92, 22, 0.45);
+      --glow: rgba(142, 22, 16, 0.35);
     }
     * { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
     body {
       margin: 0;
-      background: var(--ink);
       color: var(--cream);
-      font-family: Outfit, "Avenir Next", "Segoe UI", sans-serif;
-      line-height: 1.5;
+      font-family: Comfortaa, "Avenir Next", "Segoe UI", sans-serif;
+      font-weight: 400;
+      line-height: 1.55;
+      background:
+        radial-gradient(ellipse 90% 55% at 8% -10%, rgba(120, 16, 12, 0.42), transparent 58%),
+        radial-gradient(ellipse 70% 50% at 100% 30%, rgba(72, 28, 6, 0.28), transparent 55%),
+        radial-gradient(ellipse 80% 40% at 50% 110%, rgba(90, 12, 10, 0.3), transparent 50%),
+        var(--ink);
     }
     a { color: inherit; }
     img { max-width: 100%; display: block; }
@@ -47,9 +56,10 @@
       justify-content: space-between;
       gap: 16px;
       padding: 14px 0;
-      background: rgba(20, 12, 8, 0.86);
-      backdrop-filter: blur(10px);
+      background: rgba(6, 2, 1, 0.92);
+      backdrop-filter: blur(14px);
       border-bottom: 1px solid var(--line);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
     }
     .brand {
       display: flex;
@@ -57,38 +67,43 @@
       text-decoration: none;
     }
     .brand strong {
-      font-family: Fraunces, Georgia, serif;
+      font-family: Comfortaa, sans-serif;
+      font-weight: 700;
       font-size: 22px;
       color: var(--foam);
     }
     .brand span {
       font-size: 11px;
-      letter-spacing: 0.18em;
+      letter-spacing: 0.22em;
       text-transform: uppercase;
       color: var(--yolk);
+      font-weight: 700;
     }
-    nav { display: flex; gap: 22px; align-items: center; font-weight: 600; font-size: 14px; }
-    nav a { text-decoration: none; color: #f0d8b0; }
+    nav { display: flex; gap: 16px; align-items: center; font-weight: 600; font-size: 14px; flex-wrap: wrap; justify-content: flex-end; }
+    nav a { text-decoration: none; color: var(--muted); }
     nav a:hover { color: var(--foam); }
     .btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      background: var(--bacon);
+      background: linear-gradient(180deg, #b51c16 0%, #6e0e0c 100%);
       color: var(--foam);
       text-decoration: none;
-      border-radius: 10px;
+      border-radius: 12px;
       padding: 12px 22px;
       font-weight: 700;
       font-size: 16px;
+      border: 1px solid rgba(255, 180, 120, 0.18);
+      box-shadow: 0 10px 24px rgba(80, 8, 6, 0.55), inset 0 1px 0 rgba(255, 210, 170, 0.18);
     }
-    .btn:hover { background: var(--bacon-hot); }
+    .btn:hover { background: linear-gradient(180deg, #d02820 0%, #8a1410 100%); }
     .btn.ghost {
       background: transparent;
       border: 2px solid var(--line);
       color: var(--cream);
+      box-shadow: none;
     }
-    .btn.ghost:hover { border-color: var(--yolk); color: var(--foam); }
+    .btn.ghost:hover { border-color: var(--yolk-hot); color: var(--foam); background: rgba(90, 18, 10, 0.35); }
     .hero {
       position: relative;
       min-height: min(88vh, 820px);
@@ -104,14 +119,15 @@
       height: 100%;
       object-fit: cover;
       object-position: 50% 48%;
+      filter: saturate(0.92) contrast(1.08) brightness(0.78);
     }
     .hero::after {
       content: "";
       position: absolute;
       inset: 0;
       background:
-        linear-gradient(180deg, rgba(20, 12, 8, 0.18) 0%, rgba(20, 12, 8, 0.22) 42%, rgba(14, 8, 5, 0.94) 100%),
-        radial-gradient(ellipse at 70% 10%, rgba(242, 179, 58, 0.18), transparent 42%);
+        linear-gradient(180deg, rgba(8, 2, 1, 0.35) 0%, rgba(8, 2, 1, 0.28) 38%, rgba(5, 1, 1, 0.96) 100%),
+        radial-gradient(ellipse at 80% 0%, rgba(140, 22, 14, 0.32), transparent 46%);
     }
     .hero-copy {
       position: relative;
@@ -121,56 +137,69 @@
     }
     .tag {
       color: var(--yolk);
-      letter-spacing: 0.22em;
+      letter-spacing: 0.24em;
       text-transform: uppercase;
       font-size: 12px;
       font-weight: 700;
       margin-bottom: 12px;
     }
-    h1 {
-      font-family: Fraunces, Georgia, serif;
-      font-size: clamp(48px, 9vw, 92px);
-      line-height: 0.92;
+    h1, h2, h3 {
+      font-family: Comfortaa, sans-serif;
+      font-weight: 700;
       color: var(--foam);
+    }
+    h1 {
+      font-size: clamp(42px, 8vw, 84px);
+      line-height: 1.05;
       margin: 0 0 16px;
+      letter-spacing: -0.03em;
+      text-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
     }
     .lede {
-      font-size: clamp(18px, 2.2vw, 22px);
-      color: #f0d8b0;
+      font-size: clamp(17px, 2.1vw, 21px);
+      color: var(--cream);
       max-width: 38ch;
       margin: 0 0 28px;
     }
     .cta-row { display: flex; flex-wrap: wrap; gap: 12px; }
     section { padding: 72px 0; scroll-margin-top: 78px; }
-    h2 {
-      font-family: Fraunces, Georgia, serif;
-      font-size: clamp(28px, 4vw, 42px);
-      color: var(--foam);
-      margin: 0 0 10px;
+    body > section:nth-of-type(even) {
+      background: linear-gradient(180deg, rgba(70, 10, 8, 0.28), rgba(7, 3, 2, 0));
+      border-top: 1px solid rgba(168, 92, 22, 0.18);
+      border-bottom: 1px solid rgba(168, 92, 22, 0.12);
     }
-    .sub { color: #e8c48a; margin: 0 0 28px; max-width: 62ch; }
+    h2 {
+      font-size: clamp(28px, 4vw, 40px);
+      line-height: 1.15;
+      margin: 0 0 10px;
+      letter-spacing: -0.03em;
+    }
+    .sub { color: var(--muted); margin: 0 0 28px; max-width: 62ch; }
     .story {
       display: grid;
       grid-template-columns: 1.1fr 0.9fr;
       gap: 40px;
       align-items: center;
     }
-    .story p { color: #f0d8b0; font-size: 17px; }
+    .story p { color: var(--cream); font-size: 17px; }
     .stat-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 12px;
     }
+    .stat, .mode, .chip, .shot {
+      background: linear-gradient(180deg, var(--card-top), var(--card));
+      border: 1px solid var(--line);
+      box-shadow: 0 16px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 190, 130, 0.08);
+    }
     .stat {
-      background: var(--card);
-      border: 2px solid var(--line);
       border-radius: 14px;
       padding: 16px 18px;
     }
     .stat b {
       display: block;
       font-size: 28px;
-      color: var(--yolk);
+      color: var(--yolk-hot);
       line-height: 1.1;
     }
     .modes {
@@ -179,8 +208,6 @@
       gap: 22px;
     }
     .mode {
-      background: var(--card);
-      border: 2px solid var(--line);
       border-radius: 16px;
       overflow: hidden;
     }
@@ -188,12 +215,13 @@
       width: 100%;
       height: 260px;
       object-fit: cover;
+      filter: saturate(0.95) contrast(1.06) brightness(0.88);
     }
-    .mode.lot img { object-position: 35% 88%; }
+    .mode.lot img { object-position: 50% 42%; }
     .mode.tower img { object-position: 50% 42%; }
     .mode-body { padding: 20px 22px 24px; }
-    .mode h3 { margin: 0 0 8px; font-size: 22px; color: var(--foam); }
-    .mode p { margin: 0; color: #f0d8b0; }
+    .mode h3 { margin: 0 0 8px; font-size: 22px; }
+    .mode p { margin: 0; color: var(--cream); }
     .shots {
       display: grid;
       grid-template-columns: 1.4fr 1fr;
@@ -201,20 +229,19 @@
     }
     .shot {
       position: relative;
-      border: 2px solid var(--line);
       border-radius: 16px;
       overflow: hidden;
-      background: #1a110c;
     }
     .shot img {
       width: 100%;
       height: 100%;
       object-fit: cover;
       min-height: 220px;
+      filter: saturate(0.95) contrast(1.06) brightness(0.9);
     }
     .shot.main { min-height: 460px; grid-row: span 2; }
-    .shot.main img { object-position: 35% 88%; height: 460px; }
-    .shot.kit img { object-position: 50% 35%; height: 222px; }
+    .shot.main img { object-position: 50% 48%; height: 460px; }
+    .shot.loadout img { object-position: 50% 35%; height: 222px; }
     .shot.hall img { object-position: 50% 48%; height: 222px; }
     .shot figcaption {
       position: absolute;
@@ -222,11 +249,11 @@
       bottom: 12px;
       margin: 0;
       padding: 6px 10px;
-      background: rgba(20, 12, 8, 0.78);
+      background: rgba(8, 2, 1, 0.86);
       border: 1px solid var(--line);
       border-radius: 8px;
       font-size: 13px;
-      font-weight: 600;
+      font-weight: 700;
       color: var(--foam);
       pointer-events: none;
     }
@@ -246,19 +273,50 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      background: rgba(8, 5, 3, 0.94);
+      gap: 14px;
+      background: rgba(4, 1, 1, 0.94);
       padding: 64px 24px 24px;
     }
     #lightbox[hidden] { display: none; }
-    #lightbox img {
+    #lightbox figure {
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
       max-width: min(96vw, 1400px);
-      max-height: calc(100vh - 80px);
+    }
+    #lightbox img {
+      max-width: min(90vw, 1400px);
+      max-height: calc(100vh - 120px);
       width: auto;
       height: auto;
       object-fit: contain;
-      border: 2px solid var(--line);
+      border: 1px solid var(--line);
       border-radius: 12px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
     }
+    #lbCap {
+      margin: 12px 0 0;
+      color: var(--foam);
+      font-weight: 700;
+      font-size: 15px;
+    }
+    #lbCap[hidden] { display: none; }
+    .lb-nav {
+      width: 48px;
+      height: 48px;
+      border: 0;
+      border-radius: 10px;
+      background: linear-gradient(180deg, #b51c16, #6e0e0c);
+      color: var(--foam);
+      font-size: 36px;
+      line-height: 1;
+      font-weight: 700;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .lb-nav:hover { background: linear-gradient(180deg, #d02820, #8a1410); }
+    .lb-nav[hidden] { display: none; }
     .lb-close {
       position: absolute;
       top: 14px;
@@ -267,46 +325,63 @@
       height: 48px;
       border: 0;
       border-radius: 10px;
-      background: var(--bacon);
+      background: linear-gradient(180deg, #b51c16, #6e0e0c);
       color: var(--foam);
       font-size: 34px;
       line-height: 1;
       font-weight: 700;
       cursor: pointer;
     }
-    .lb-close:hover { background: var(--bacon-hot); }
+    .lb-close:hover { background: linear-gradient(180deg, #d02820, #8a1410); }
     .armory, .leftovers {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 12px;
     }
     .chip {
-      background: var(--card);
-      border: 2px solid var(--line);
       border-radius: 14px;
       padding: 16px 18px;
     }
-    .chip h3 { margin: 0 0 4px; font-size: 18px; color: var(--foam); }
-    .chip p { margin: 0; color: #e8c48a; font-size: 14px; }
+    .chip h3 { margin: 0 0 4px; font-size: 18px; }
+    .chip p { margin: 0; color: var(--muted); font-size: 14px; }
+    .boss-grid {
+      display: grid;
+      grid-template-columns: 0.92fr 1.08fr;
+      gap: 28px;
+      align-items: start;
+    }
+    .boss-grid p { color: var(--cream); font-size: 17px; }
+    .boss-shots {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .boss-shots .shot img { height: 280px; object-position: 50% 78%; }
+    .boss-shots .shot.face img { object-position: 50% 72%; }
+    .boss-shots .shot.pan img { object-position: 50% 80%; }
     .play-band {
       text-align: center;
-      padding: 64px 0 80px;
+      padding: 72px 0 88px;
+      background:
+        radial-gradient(ellipse at 50% 0%, rgba(140, 22, 14, 0.38), transparent 58%),
+        linear-gradient(180deg, #120606, #070302);
       border-top: 1px solid var(--line);
     }
-    .play-band p { color: #e8c48a; margin: 8px auto 24px; max-width: 46ch; }
+    .play-band p { color: var(--muted); margin: 8px auto 24px; max-width: 46ch; }
     footer {
       border-top: 1px solid var(--line);
       padding: 22px 0 36px;
-      color: #c9a77a;
+      color: var(--muted);
       display: flex;
       justify-content: space-between;
       gap: 16px;
       flex-wrap: wrap;
       font-size: 14px;
+      background: #050201;
     }
-    footer a { color: var(--yolk); }
+    footer a { color: var(--yolk-hot); }
     @media (max-width: 860px) {
-      .story, .modes, .shots, .armory, .leftovers { grid-template-columns: 1fr; }
+      .story, .modes, .shots, .armory, .leftovers, .boss-grid, .boss-shots { grid-template-columns: 1fr; }
       .shot.main { grid-row: auto; }
       .shot.main img, .mode img { height: 240px; }
       header .wrap, .hero .wrap { width: min(1120px, calc(100% - 28px)); }
@@ -325,10 +400,11 @@
         <a href="#story">The raid</a>
         <a href="#modes">Modes</a>
         <a href="#shots">Shots</a>
-        <a href="#kit">Armory</a>
+        <a href="#loadout">Armory</a>
+        <a href="#bosses">Boss Fights</a>
       </nav>
       <a class="btn" href="play.html">Play now</a>
-    </div>
+      </div>
   </header>
 
   <section class="hero" id="top">
@@ -336,7 +412,7 @@
     <div class="wrap hero-copy">
       <div class="tag">Single-page breakfast FPS</div>
       <h1>The leftovers are holding the kitchen.</h1>
-      <p class="lede">Pack three guns, pick a mode, and scramble. Toast, bacon, maple, and espresso against a diner that went feral after last call.</p>
+      <p class="lede">Pick three weapons, pick a mode and scramble. Meals revolted against the diner after last call and you have to stop them.</p>
       <div class="cta-row">
         <a class="btn" href="play.html">Play Agent Scramble</a>
         <a class="btn ghost" href="#shots">See the diner</a>
@@ -351,14 +427,14 @@
         <h2>Diner country after last call.</h2>
         <p>Hangry Eggs, Rogue Sausages, Cereal Haunts, Watermelon Brutes, Waffle Stacks, and Coffee Creeps have taken the lot. They don’t shoot. They path around furniture, climb stairs, and try to eat you — or the kitchen.</p>
         <p>Take <b>exactly three</b> of seven breakfast weapons. Clear waves. Don’t get burnt toast.</p>
-      </div>
+    </div>
       <div class="stat-grid">
         <div class="stat"><b>7</b> weapons in the armory</div>
         <div class="stat"><b>3</b> packed per run</div>
         <div class="stat"><b>2</b> modes to pick from</div>
         <div class="stat"><b>6</b> leftover species</div>
       </div>
-    </div>
+      </div>
   </section>
 
   <section id="modes">
@@ -368,13 +444,13 @@
       <p class="sub">Hunt across the block, or hold the hallway while the kitchen takes the beating.</p>
       <div class="modes">
         <article class="mode lot">
-          <button type="button" class="zoom" data-full="assets/shot-lot.jpg" aria-label="Open Lot Raid screenshot">
-            <img src="assets/shot-lot.jpg" alt="First-person view across the diner lot" />
+          <button type="button" class="zoom" data-gallery="lot" data-full="assets/shot-lot.jpg?v=aerial" aria-label="Open Lot Raid photos">
+            <img src="assets/shot-lot.jpg?v=aerial" alt="Bird's-eye view of the Lot Raid diner block" />
           </button>
           <div class="mode-body">
             <h3>Lot Raid</h3>
             <p>Free-roam the diner block, kitchen deck, and Salsa Cantina. Stomach HP is yours. Next wave starts ten seconds after the last leftover dies.</p>
-          </div>
+    </div>
         </article>
         <article class="mode tower">
           <button type="button" class="zoom" data-full="assets/shot-tower.jpg" aria-label="Open Tower Kitchen screenshot">
@@ -383,25 +459,25 @@
           <div class="mode-body">
             <h3>Tower Kitchen</h3>
             <p>Hold a diner hallway. The kitchen has 1000 HP. Hit ORDER UP to start each wave, then buy Toaster Turrets and plant landmines from the upgrades room.</p>
-          </div>
+  </div>
         </article>
       </div>
-    </div>
+      </div>
   </section>
 
   <section id="shots">
     <div class="wrap">
       <div class="tag">From the floor</div>
       <h2>Screens from a live run.</h2>
-      <p class="sub">Kit screen, the lot, and the short-order hallway — grabbed from the game itself. Click a shot to open it full screen.</p>
+      <p class="sub">Loadout screen, the block from above, and the short-order hallway — grabbed from the game itself. Click a Lot Raid shot to scroll through the bird's-eye view and both buildings.</p>
       <div class="shots">
         <figure class="shot main">
-          <button type="button" class="zoom" data-full="assets/shot-lot.jpg" aria-label="Open Lot Raid screenshot">
-            <img src="assets/shot-lot.jpg" alt="First-person view across the diner lot" />
+          <button type="button" class="zoom" data-gallery="lot" data-full="assets/shot-lot.jpg?v=aerial" aria-label="Open Lot Raid photos">
+            <img src="assets/shot-lot.jpg?v=aerial" alt="Bird's-eye view of the Lot Raid diner block" />
           </button>
-          <figcaption>Lot Raid — diner floor</figcaption>
+          <figcaption>Lot Raid — bird's eye</figcaption>
         </figure>
-        <figure class="shot kit">
+        <figure class="shot loadout">
           <button type="button" class="zoom" data-full="assets/shot-menu.jpg" aria-label="Open loadout screenshot">
             <img src="assets/shot-menu.jpg" alt="Agent Scramble loadout menu with seven breakfast weapons" />
           </button>
@@ -413,11 +489,11 @@
           </button>
           <figcaption>Tower Kitchen — toast up</figcaption>
         </figure>
-      </div>
+    </div>
     </div>
   </section>
 
-  <section id="kit">
+  <section id="loadout">
     <div class="wrap">
       <div class="tag">Armory</div>
       <h2>Breakfast, loaded.</h2>
@@ -430,7 +506,7 @@
         <article class="chip"><h3>Pancake Frisbee</h3><p>Thrown stack, heavy hit.</p></article>
         <article class="chip"><h3>Maple Marksman</h3><p>Bolt-action. Shift for a 2× scope.</p></article>
         <article class="chip"><h3>Link Launcher</h3><p>Sausage rockets with splash.</p></article>
-      </div>
+  </div>
     </div>
   </section>
 
@@ -438,7 +514,7 @@
     <div class="wrap">
       <div class="tag">The other side of the counter</div>
       <h2>Hangry leftovers.</h2>
-      <p class="sub">Melee only. They path around booths and climb stairs. Every fifth Lot Raid wave they get a stacking health buff.</p>
+      <p class="sub">Melee only. They run around the map climbing stairs to hunt. Every fifth wave they get stronger- then there is a boss fight to test your might</p>
       <div class="leftovers">
         <article class="chip"><h3>Hangry Egg</h3><p>Fast breakfast with a grin.</p></article>
         <article class="chip"><h3>Rogue Sausage</h3><p>Low, quick, and greasy.</p></article>
@@ -446,6 +522,37 @@
         <article class="chip"><h3>Watermelon Brute</h3><p>Slow, thick rind, big chew.</p></article>
         <article class="chip"><h3>Waffle Stack</h3><p>Grid of trouble.</p></article>
         <article class="chip"><h3>Coffee Creep</h3><p>Wired and closing in.</p></article>
+  </div>
+    </div>
+  </section>
+
+  <section id="bosses">
+    <div class="wrap">
+      <div class="tag">The big plate</div>
+      <h2>After every fifth wave.</h2>
+      <div class="boss-grid">
+        <div>
+          <p>Lot Raid only. Clear leftover waves 5, 10, 15… and the round name flips to <b>Boss Fight</b>. A Brunch Titan rolls onto the diner floor — skillet, egg, waffle, bacon — with a health bar that does not mess around.</p>
+          <p>The next leftover wave does not start until that titan is down. Later fights hit harder and soak more toast.</p>
+          <div class="stat-grid" style="margin-top: 18px;">
+            <div class="stat"><b>5</b> leftover waves, then a titan</div>
+            <div class="stat"><b>1</b> titan between you and wave 6</div>
+          </div>
+        </div>
+        <div class="boss-shots">
+          <figure class="shot face">
+            <button type="button" class="zoom" data-full="assets/shot-boss.jpg" aria-label="Open Brunch Titan screenshot">
+              <img src="assets/shot-boss.jpg" alt="Brunch Titan facing the player during a Lot Raid Boss Fight" />
+            </button>
+            <figcaption>Brunch Titan — Lot Raid</figcaption>
+          </figure>
+          <figure class="shot pan">
+            <button type="button" class="zoom" data-full="assets/shot-boss-pan.jpg" aria-label="Open Boss Fight health bar screenshot">
+              <img src="assets/shot-boss-pan.jpg" alt="Boss Fight health bar over the Brunch Titan on the diner floor" />
+            </button>
+            <figcaption>Hold the round</figcaption>
+          </figure>
+        </div>
       </div>
     </div>
   </section>
@@ -468,32 +575,78 @@
 
   <div id="lightbox" hidden>
     <button type="button" class="lb-close" aria-label="Close screenshot">&times;</button>
-    <img alt="" />
+    <button type="button" class="lb-nav prev" hidden aria-label="Previous photo">‹</button>
+    <figure>
+      <img alt="" />
+      <figcaption id="lbCap" hidden></figcaption>
+    </figure>
+    <button type="button" class="lb-nav next" hidden aria-label="Next photo">›</button>
   </div>
   <script>
     const lb = document.getElementById("lightbox");
     const lbImg = lb.querySelector("img");
+    const lbCap = document.getElementById("lbCap");
     const closeBtn = lb.querySelector(".lb-close");
-    function openShot(src, alt) {
-      lbImg.src = src;
-      lbImg.alt = alt || "";
+    const prevBtn = lb.querySelector(".lb-nav.prev");
+    const nextBtn = lb.querySelector(".lb-nav.next");
+    const GALLERIES = {
+      lot: [
+        { src: "assets/shot-lot.jpg?v=aerial", alt: "Bird's-eye view of the Lot Raid diner block", cap: "Lot Raid — bird's eye" },
+        { src: "assets/shot-diner.jpg?v=aerial", alt: "Brunch diner from the front", cap: "Brunch diner" },
+        { src: "assets/shot-cantina.jpg?v=aerial", alt: "Salsa Cantina from the front", cap: "Salsa Cantina" },
+      ]
+    };
+    let lbList = [];
+    let lbIndex = 0;
+    function showLb() {
+      const item = lbList[lbIndex];
+      if (!item) return;
+      lbImg.src = item.src;
+      lbImg.alt = item.alt || "";
+      lbCap.hidden = !item.cap;
+      lbCap.textContent = item.cap || "";
+      const multi = lbList.length > 1;
+      prevBtn.hidden = !multi;
+      nextBtn.hidden = !multi;
+    }
+    function openShot(src, alt, gallery) {
+      if (gallery && GALLERIES[gallery]) {
+        lbList = GALLERIES[gallery];
+        const i = lbList.findIndex((x) => x.src === src);
+        lbIndex = i < 0 ? 0 : i;
+      } else {
+        lbList = [{ src, alt }];
+        lbIndex = 0;
+      }
       lb.hidden = false;
+      showLb();
       closeBtn.focus();
     }
     function closeShot() {
       lb.hidden = true;
       lbImg.removeAttribute("src");
+      lbList = [];
+    }
+    function stepLb(dir) {
+      if (lb.hidden || lbList.length < 2) return;
+      lbIndex = (lbIndex + dir + lbList.length) % lbList.length;
+      showLb();
     }
     document.querySelectorAll(".zoom").forEach((btn) => {
       btn.addEventListener("click", () => {
         const img = btn.querySelector("img");
-        openShot(btn.dataset.full, img ? img.alt : "");
+        openShot(btn.dataset.full, img ? img.alt : "", btn.dataset.gallery);
       });
     });
     closeBtn.addEventListener("click", closeShot);
+    prevBtn.addEventListener("click", (e) => { e.stopPropagation(); stepLb(-1); });
+    nextBtn.addEventListener("click", (e) => { e.stopPropagation(); stepLb(1); });
     lb.addEventListener("click", (e) => { if (e.target === lb) closeShot(); });
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && !lb.hidden) closeShot();
+      if (lb.hidden) return;
+      if (e.key === "Escape") closeShot();
+      if (e.key === "ArrowLeft") stepLb(-1);
+      if (e.key === "ArrowRight") stepLb(1);
     });
   </script>
 </body>

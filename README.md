@@ -28,7 +28,7 @@ Two modes:
 | Mouse | Look |
 | Space | Jump |
 | Click | Fire |
-| 1–3 / scroll | Swap the three guns in your kit |
+| 1–3 / scroll | Swap the three guns in your Loadout |
 | Shift | Aim (Marksman 2× scope, Link Launcher 1.5× irons) |
 | R | Reload |
 | E | ORDER UP / buy from the shop (Tower Kitchen) |
@@ -72,5 +72,5 @@ Repo: [brettdaniels2017/breakfast-fps](https://github.com/brettdaniels2017/break
 
 ## Goals
 
-- **Modes** — timed rushes, a high-score endless scramble, and a kit-test range.
+- **Modes** — timed rushes, a high-score endless scramble, and a Loadout-test range.
 - **Maps** — more lots besides the diner/cantina block and the Tower Kitchen hallway.

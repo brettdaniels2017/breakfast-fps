@@ -31,7 +31,7 @@
       gap: 16px;
       flex-wrap: wrap;
     }
-    #top { top: 18px; }
+    #top { top: 18px; flex-wrap: nowrap; }
     #bottom { bottom: 18px; }
     .panel {
       background: rgba(20, 12, 8, 0.62);
@@ -44,6 +44,23 @@
     .value { font-size: 28px; line-height: 1.1; color: #fff6df; }
     .meter { height: 10px; margin-top: 6px; background: #2a1a12; border-radius: 99px; overflow: hidden; }
     .meter > span { display: block; height: 100%; background: linear-gradient(90deg, #c43c2c, #f2b33a); }
+    #bossHud {
+      display: none;
+      position: absolute;
+      top: 168px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(560px, calc(100% - 48px));
+      background: rgba(20, 12, 8, 0.72);
+      border: 2px solid rgba(196, 60, 44, 0.55);
+      border-radius: 10px;
+      padding: 8px 14px 10px;
+      text-align: center;
+    }
+    #bossHud.on { display: block; }
+    #bossHud .meter { height: 14px; }
+    #bossHud .meter > span { background: linear-gradient(90deg, #8a1a12, #c43c2c, #f2b33a); }
+    #wave.boss-round { font-size: 18px; }
     #crosshair {
       position: absolute;
       left: 50%;
@@ -247,7 +264,7 @@
   <div id="hit"></div>
   <div id="hud">
     <div class="bar" id="top">
-      <div class="panel"><div class="label">Wave</div><div class="value" id="wave">1</div></div>
+      <div class="panel"><div class="label" id="waveLabel">Wave</div><div class="value" id="wave">1</div></div>
       <div class="panel"><div class="label">Score</div><div class="value" id="score">0</div></div>
       <div class="panel"><div class="label">Kills</div><div class="value" id="kills">0</div></div>
       <div class="panel" id="basePanel">
@@ -259,6 +276,11 @@
         <div class="label">Mines</div>
         <div class="value" id="mineText">0</div>
       </div>
+    </div>
+    <div id="bossHud">
+      <div class="label" id="bossLabel">Boss Fight · Brunch Titan</div>
+      <div class="value" id="bossText">1000</div>
+      <div class="meter"><span id="bossBar"></span></div>
     </div>
     <div id="crosshair"></div>
     <div id="boltCd"></div>
@@ -285,7 +307,7 @@
     <div class="card" id="menuCard">
       <div class="tag">Single-page breakfast FPS</div>
       <h1>Agent Scramble</h1>
-      <p>Pack a kit, pick a mode, then scramble. Choose <b>exactly 3</b> of the 7 weapons.</p>
+      <p>Pack a Loadout, pick a mode, then scramble. Choose <b>exactly 3</b> of the 7 weapons.</p>
       <div class="modes">
         <button type="button" class="mode-pick on" id="modeRaid">Lot Raid<small>Hunt leftovers across the diner block</small></button>
         <button type="button" class="mode-pick" id="modeTower">Tower Kitchen<small>Hold the diner hallway. Hit ORDER UP to start each wave. Kitchen has 1000 HP.</small></button>
@@ -297,7 +319,7 @@
         <div><b>Space</b> jump</div>
         <div><b>Mouse</b> look around</div>
         <div><b>Click</b> fire</div>
-        <div><b>1–3 / scroll</b> swap kit</div>
+        <div><b>1–3 / scroll</b> swap Loadout</div>
         <div><b>Shift</b> aim · <b>R</b> reload · <b>E</b> ORDER UP / shop · <b>G</b> plant mine · <b>Esc</b> pause</div>
       </div>
       <button id="startBtn" disabled>Start Agent Scramble</button>
@@ -306,7 +328,7 @@
     <div class="card" id="overCard">
       <h1>Burnt Toast</h1>
       <p id="overText">The leftovers won.</p>
-      <button id="againBtn">Change kit & sit again</button>
+      <button id="againBtn">Change Loadout & sit again</button>
     </div>
   </div>
   <div id="pause">
@@ -350,6 +372,11 @@ const hudBaseBar = document.getElementById("baseBar");
 const basePanel = document.getElementById("basePanel");
 const hudMines = document.getElementById("mineText");
 const minePanel = document.getElementById("minePanel");
+const bossHud = document.getElementById("bossHud");
+const hudBoss = document.getElementById("bossText");
+const hudBossBar = document.getElementById("bossBar");
+const hudBossLabel = document.getElementById("bossLabel");
+const hudWaveLabel = document.getElementById("waveLabel");
 const scopeEl = document.getElementById("scope");
 const crosshairEl = document.getElementById("crosshair");
 const boltCdEl = document.getElementById("boltCd");
@@ -386,6 +413,7 @@ const ENEMY_KINDS = [
 ];
 
 const spawnPoints = [];
+let spawnReach = new Set();
 const enemies = [];
 const projectiles = [];
 const particles = [];
@@ -422,6 +450,8 @@ const state = {
   waveHold: false,
   turretStock: 0,
   mines: 0,
+  bossFight: false,
+  pendingBoss: false,
 };
 
 const HALL_HALF = 5;
@@ -545,7 +575,9 @@ function forSolidsNear(x, z, r, fn) {
 }
 
 function cornerR(s) {
-  return Math.min(0.26, (s.maxx - s.minx) * 0.34, (s.maxz - s.minz) * 0.34);
+  const hx = (s.maxx - s.minx) * 0.5;
+  const hz = (s.maxz - s.minz) * 0.5;
+  return Math.min(0.5, hx * 0.9, hz * 0.9);
 }
 
 function closestOnSolid(s, x, z) {
@@ -601,38 +633,113 @@ function canMelee(e, flat) {
   return eMax >= pMin && eMin <= pMax;
 }
 
+function resolveHit(x, z, r, feetY, bodyH) {
+  let best = null;
+  let worst = 0;
+  const head = feetY + bodyH;
+  forSolidsNear(x, z, r + 0.45, (s) => {
+    if (!s.block) return false;
+    if (s.stand && s.maxy > feetY + 0.02 && s.maxy <= feetY + 0.92) return false;
+    if (!(head > s.miny + 0.06 && feetY < s.maxy - 0.04)) return false;
+    if (!overlapsXZ(s, x, z, r)) return false;
+    const cr = cornerR(s);
+    const c = closestOnSolid(s, x, z);
+    let dx = x - c.x;
+    let dz = z - c.z;
+    const dist = Math.hypot(dx, dz);
+    const pen = r + cr + 0.02 - dist;
+    if (pen <= worst) return false;
+    worst = pen;
+    if (dist < 1e-5) {
+      const left = x - s.minx;
+      const right = s.maxx - x;
+      const back = z - s.minz;
+      const fwd = s.maxz - z;
+      const m = Math.min(left, right, back, fwd);
+      if (m === left) { dx = -1; dz = 0; }
+      else if (m === right) { dx = 1; dz = 0; }
+      else if (m === back) { dx = 0; dz = -1; }
+      else { dx = 0; dz = 1; }
+      best = { nx: dx, nz: dz, pen };
+    } else {
+      best = { nx: dx / dist, nz: dz / dist, pen };
+    }
+    return false;
+  });
+  return best;
+}
+
+function slideMove(x, z, y, dx, dz, r, bodyH, maxUp, extraBlock) {
+  const stuck = (px, pz, py) => blockedAt(px, pz, r, py, bodyH) || !!(extraBlock && extraBlock(px, pz, py));
+  for (let i = 0; i < 4; i++) {
+    const len = Math.hypot(dx, dz);
+    if (len < 1e-5) break;
+    const tx = x + dx;
+    const tz = z + dz;
+    if (!stuck(tx, tz, y)) {
+      x = tx;
+      z = tz;
+      break;
+    }
+    if (maxUp) {
+      const step = highestStep(tx, tz, r, y, maxUp);
+      if (step !== null && !stuck(tx, tz, step)) {
+        x = tx;
+        z = tz;
+        y = step;
+        break;
+      }
+    }
+    let lo = 0;
+    let hi = 1;
+    for (let k = 0; k < 7; k++) {
+      const mid = (lo + hi) * 0.5;
+      if (stuck(x + dx * mid, z + dz * mid, y)) hi = mid;
+      else lo = mid;
+    }
+    x += dx * lo;
+    z += dz * lo;
+    dx *= (1 - lo);
+    dz *= (1 - lo);
+    const probe = 0.1 / len;
+    const hit = resolveHit(x + dx * probe, z + dz * probe, r, y, bodyH)
+      || resolveHit(x, z, r, y, bodyH);
+    if (!hit) {
+      if (!stuck(x + dx, z, y)) x += dx;
+      else if (maxUp) {
+        const step = highestStep(x + dx, z, r, y, maxUp);
+        if (step !== null && !stuck(x + dx, z, step)) { x += dx; y = step; }
+      }
+      if (!stuck(x, z + dz, y)) z += dz;
+      else if (maxUp) {
+        const step = highestStep(x, z + dz, r, y, maxUp);
+        if (step !== null && !stuck(x, z + dz, step)) { z += dz; y = step; }
+      }
+      break;
+    }
+    const vn = dx * hit.nx + dz * hit.nz;
+    if (vn < 0) {
+      dx -= hit.nx * vn;
+      dz -= hit.nz * vn;
+    } else {
+      break;
+    }
+  }
+  return { x, z, y };
+}
+
 function tryMove(nx, nz, r) {
   let x = player.position.x;
   let z = player.position.z;
   let y = player.position.y;
-
-  if (!blockedAt(nx, z, r, y)) {
-    x = nx;
-  } else {
-    const step = highestStep(nx, z, r, y);
-    if (step !== null && !blockedAt(nx, z, r, step)) {
-      x = nx;
-      y = step;
-      state.vy = 0;
-      state.grounded = true;
-    }
+  const moved = slideMove(x, z, y, nx - x, nz - z, r, PLAYER_H, 0.65, null);
+  if (moved.y !== y && moved.y > y) {
+    state.vy = 0;
+    state.grounded = true;
   }
-
-  if (!blockedAt(x, nz, r, y)) {
-    z = nz;
-  } else {
-    const step = highestStep(x, nz, r, y);
-    if (step !== null && !blockedAt(x, nz, r, step)) {
-      z = nz;
-      y = step;
-      state.vy = 0;
-      state.grounded = true;
-    }
-  }
-
-  player.position.x = x;
-  player.position.z = z;
-  player.position.y = y;
+  player.position.x = moved.x;
+  player.position.z = moved.z;
+  player.position.y = moved.y;
   unstickPlayer();
 }
 
@@ -711,39 +818,22 @@ function tryEnemyMove(e, nx, nz) {
   let x = e.mesh.position.x;
   let z = e.mesh.position.z;
   let y = e.floorY;
-
-  if (!jammed(nx, z, y)) {
-    x = nx;
-  } else {
-    const step = highestStep(nx, z, r, y, 0.95);
-    if (step !== null && !jammed(nx, z, step)) {
-      x = nx;
-      y = step;
-    }
-  }
-  if (!jammed(x, nz, y)) {
-    z = nz;
-  } else {
-    const step = highestStep(x, nz, r, y, 0.95);
-    if (step !== null && !jammed(x, nz, step)) {
-      z = nz;
-      y = step;
-    }
-  }
+  const moved = slideMove(x, z, y, nx - x, nz - z, r, body, 0.95, (px, pz) => blockedByPlayer(px, pz, r));
+  x = moved.x;
+  z = moved.z;
+  y = moved.y;
 
   if (x === e.mesh.position.x && z === e.mesh.position.z) {
     const sp = Math.hypot(nx - e.mesh.position.x, nz - e.mesh.position.z) || 0.1;
     const ang = Math.atan2(nz - e.mesh.position.z, nx - e.mesh.position.x);
-    for (const a of [0.8, -0.8, 1.25, -1.25]) {
-      const tx = e.mesh.position.x + Math.cos(ang + a) * sp;
-      const tz = e.mesh.position.z + Math.sin(ang + a) * sp;
-      if (!jammed(tx, tz, y)) {
-        x = tx;
-        z = tz;
+    for (const a of [0.7, -0.7, 1.15, -1.15]) {
+      const slide = slideMove(e.mesh.position.x, e.mesh.position.z, y, Math.cos(ang + a) * sp, Math.sin(ang + a) * sp, r, body, 0.95, (px, pz) => blockedByPlayer(px, pz, r));
+      if (slide.x !== e.mesh.position.x || slide.z !== e.mesh.position.z) {
+        x = slide.x;
+        z = slide.z;
+        y = slide.y;
         break;
       }
-      if (!jammed(tx, e.mesh.position.z, y)) { x = tx; break; }
-      if (!jammed(e.mesh.position.x, tz, y)) { z = tz; break; }
     }
   }
 
@@ -797,7 +887,12 @@ function cellKey(ix, iz) {
 function floorsAt(x, z, r) {
   const ys = [0];
   forSolidsNear(x, z, r, (s) => {
-    if (s.stand && overlapsXZ(s, x, z, r)) ys.push(s.maxy);
+    if (!s.stand || !overlapsXZ(s, x, z, r)) return false;
+    const w = s.maxx - s.minx;
+    const d = s.maxz - s.minz;
+    if (s.maxy > 0.28 && Math.min(w, d) < 3.2 && w * d < 18) return false;
+    ys.push(s.maxy);
+    return false;
   });
   ys.sort((a, b) => a - b);
   const uniq = [];
@@ -2618,6 +2713,46 @@ function makeEnemyMesh(kind) {
   return g;
 }
 
+function makeBossMesh() {
+  const g = new THREE.Group();
+  const shadow = new THREE.Mesh(
+    new THREE.CircleGeometry(1.15, 20),
+    new THREE.MeshBasicMaterial({ color: 0x1a1008, transparent: true, opacity: 0.4, depthWrite: false })
+  );
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.y = 0.02;
+  shadow.renderOrder = -1;
+  g.add(shadow);
+  const pan = part(g, new THREE.CylinderGeometry(0.95, 0.88, 0.16, 22), 0x2a1a12, 0, 0.18, 0, 0, 0, 0, { metalness: 0.45, roughness: 0.35 });
+  pan.scale.set(1, 1, 1);
+  part(g, new THREE.TorusGeometry(0.92, 0.07, 8, 22), 0x1a1008, 0, 0.26, 0, 1.57, 0, 0, { metalness: 0.5, roughness: 0.3 });
+  const handle = part(g, new THREE.CapsuleGeometry(0.06, 0.7, 4, 8), 0x3b2418, 1.15, 0.22, 0, 0, 0, 1.57, { metalness: 0.35, roughness: 0.4 });
+  handle.rotation.z = 0;
+  const egg = part(g, new THREE.SphereGeometry(0.62, 18, 14), 0xfff4d2, 0, 0.82, 0.04);
+  egg.scale.set(1.15, 0.82, 1.05);
+  part(g, new THREE.SphereGeometry(0.32, 14, 12), 0xf0a020, 0.08, 1.05, 0.18, 0, 0, 0, { roughness: 0.32 });
+  const waffle = part(g, new THREE.BoxGeometry(0.7, 0.14, 0.7), 0xe0a24a, -0.38, 0.42, -0.18, 0, 0.35, 0, { map: waffleMap() });
+  waffle.scale.set(1, 1, 1);
+  part(g, new THREE.BoxGeometry(0.7, 0.14, 0.7), 0xe0a24a, -0.32, 0.56, -0.14, 0, 0.18, 0, { map: waffleMap() });
+  const bacon = part(g, new THREE.CapsuleGeometry(0.08, 0.85, 4, 8), 0xc43c2c, 0.48, 0.55, 0.12, 0.4, 0, 1.1);
+  bacon.scale.set(1, 1, 1);
+  part(g, new THREE.CapsuleGeometry(0.07, 0.7, 4, 8), 0xb84a22, 0.38, 0.48, -0.16, -0.3, 0.2, 0.9);
+  foodEyes(g, 1.12, 0.52, 0.22, 0.08);
+  part(g, new THREE.BoxGeometry(0.12, 0.03, 0.04), 0x3b2418, -0.14, 1.22, 0.5, 0, 0, 0.35);
+  part(g, new THREE.BoxGeometry(0.12, 0.03, 0.04), 0x3b2418, 0.14, 1.22, 0.5, 0, 0, -0.35);
+  const hitMeshes = [];
+  const glowMats = [];
+  g.traverse((o) => {
+    if (!o.isMesh) return;
+    o.userData.enemyRoot = g;
+    hitMeshes.push(o);
+    if (o.material && o.material.emissive) glowMats.push(o.material);
+  });
+  g.userData.hitMeshes = hitMeshes;
+  g.userData.glowMats = glowMats;
+  return g;
+}
+
 function currentWeapon() {
   return WEAPONS[state.weapon] || ARMORY[0];
 }
@@ -2718,6 +2853,7 @@ function rebuildWorld() {
     else buildDiner();
   });
   buildNav();
+  spawnReach = markReachable();
   collectSpawnPoints();
   state.builtMode = state.mode;
 }
@@ -2829,22 +2965,72 @@ function burst(pos, color, n) {
   }
 }
 
+function supportingDeck(x, z, y) {
+  if (y <= 0.28) return true;
+  let ok = false;
+  forSolidsNear(x, z, 0.4, (s) => {
+    if (!s.stand || Math.abs(s.maxy - y) > 0.22 || !overlapsXZ(s, x, z, 0.28)) return false;
+    const w = s.maxx - s.minx;
+    const d = s.maxz - s.minz;
+    if (Math.min(w, d) >= 3.2 || w * d >= 18) ok = true;
+    return false;
+  });
+  return ok;
+}
+
+function spawnOpen(x, z, y) {
+  let free = 0;
+  for (let i = 0; i < 8; i++) {
+    const a = i * Math.PI * 0.25;
+    const px = x + Math.cos(a) * 1.4;
+    const pz = z + Math.sin(a) * 1.4;
+    if (blockedAt(px, pz, 0.4, y, 1.2)) continue;
+    if (Math.abs(floorUnder(px, pz, y + 0.25, 0.32) - y) > 0.5) continue;
+    free++;
+  }
+  return free >= 4;
+}
+
+function markReachable() {
+  const seen = new Set();
+  const start = nearestNav(0, state.mode === "tower" ? 2.2 : 8, 0);
+  if (!start) return seen;
+  const q = [start];
+  seen.add(start.k);
+  for (let i = 0; i < q.length; i++) {
+    const nei = q[i].nei;
+    for (let j = 0; j < nei.length; j++) {
+      const nb = nei[j];
+      if (seen.has(nb.k)) continue;
+      seen.add(nb.k);
+      q.push(nb);
+    }
+  }
+  return seen;
+}
+
 function spawnClear(x, y, z) {
-  if (blockedAt(x, z, 0.58, y + 0.04, 1.2)) return false;
+  if (blockedAt(x, z, 0.64, y + 0.04, 1.25)) return false;
+  if (blockedStanding(x, z, 0.5, y)) return false;
   const floor = floorUnder(x, z, y + 0.2, 0.4);
   if (Math.abs(floor - y) > 0.22) return false;
+  if (!supportingDeck(x, z, y)) return false;
+  if (!spawnOpen(x, z, y)) return false;
   const n = nearestNav(x, z, y);
-  return !!(n && Math.hypot(n.x - x, n.z - z) < 1.15 && Math.abs(n.y - y) < 0.45);
+  if (!(n && Math.hypot(n.x - x, n.z - z) < 1.15 && Math.abs(n.y - y) < 0.45)) return false;
+  if (n.nei.length < 3) return false;
+  if (spawnReach.size && !spawnReach.has(n.k)) return false;
+  return true;
 }
 
 function collectSpawnPoints() {
   spawnPoints.length = 0;
   for (const n of navNodes) {
-    if (n.y > 4.4) continue;
+    if (n.y > 3.4) continue;
     const r2 = n.x * n.x + n.z * n.z;
     if (state.mode === "tower") {
       if (n.z > -28 || n.z < -HALL_LEN + 2.2) continue;
-      if (Math.abs(n.x) > HALL_HALF - 0.7) continue;
+      if (Math.abs(n.x) > HALL_HALF - 2.15) continue;
     } else if (r2 < 16) continue;
     if (!inPlayLot(n.x, n.z)) continue;
     if (!spawnClear(n.x, n.y, n.z)) continue;
@@ -2852,8 +3038,8 @@ function collectSpawnPoints() {
   }
   if (!spawnPoints.length) {
     const fallback = state.mode === "tower"
-      ? [[-4, 0, -33], [0, 0, -34], [4, 0, -33], [-2, 0, -31], [2, 0, -31], [0, 0, -36]]
-      : [[0, 0, 16], [8, 0, 16], [-8, 0, 16], [0, 3.15, -12]];
+      ? [[-2.2, 0, -33], [0, 0, -34], [2.2, 0, -33], [-1.4, 0, -31], [1.4, 0, -31], [0, 0, -36]]
+      : [[0, 0, 16], [8, 0, 16], [-8, 0, 16], [12, 0, 8], [-12, 0, 8], [0, 0, 20]];
     for (const [x, y, z] of fallback) {
       if (inPlayLot(x, z) && spawnClear(x, y, z)) spawnPoints.push(new THREE.Vector3(x, y, z));
     }
@@ -2873,15 +3059,16 @@ function spawnRoom(x, y, z) {
   return true;
 }
 
-function spawnEnemy() {
+function pickSpawnSpot(minDist = 9) {
   const far = [];
+  const min2 = minDist * minDist;
   for (const p of spawnPoints) {
     const dx = p.x - player.position.x;
     const dz = p.z - player.position.z;
-    if (dx * dx + dz * dz > 81) far.push(p);
+    if (dx * dx + dz * dz > min2) far.push(p);
   }
   const pool = far.length ? far : spawnPoints;
-  if (!pool.length) return false;
+  if (!pool.length) return null;
   let spot = null;
   for (let n = 0; n < 22; n++) {
     const p = pool[(Math.random() * pool.length) | 0];
@@ -2893,6 +3080,11 @@ function spawnEnemy() {
       if (spawnRoom(p.x, p.y, p.z)) { spot = p; break; }
     }
   }
+  return spot || pool[0] || null;
+}
+
+function spawnEnemy() {
+  const spot = pickSpawnSpot(9);
   if (!spot) return false;
   const kind = ENEMY_KINDS[(Math.random() * ENEMY_KINDS.length) | 0];
   const hp = Math.round(kind.hp * Math.pow(1.2, Math.floor(state.wave / 5)));
@@ -2902,6 +3094,7 @@ function spawnEnemy() {
   const enemy = {
     ...kind,
     hp,
+    maxHp: hp,
     hurt: 0,
     bite: 0.8,
     mesh,
@@ -2919,6 +3112,54 @@ function spawnEnemy() {
   };
   mesh.userData.enemy = enemy;
   enemies.push(enemy);
+  return true;
+}
+
+function spawnBoss() {
+  const spot = pickSpawnSpot(11) || pickSpawnSpot(4);
+  if (!spot) return false;
+  const n = Math.max(1, Math.floor(state.wave / 5));
+  const hp = Math.round(1100 * Math.pow(1.4, n - 1));
+  const kind = {
+    name: "Brunch Titan",
+    hp,
+    speed: 1.48,
+    dmg: 22,
+    baseDmg: 26,
+    score: 700 * n,
+    radius: 0.95,
+    height: 2.2,
+  };
+  const mesh = makeBossMesh();
+  mesh.position.set(spot.x, spot.y, spot.z);
+  scene.add(mesh);
+  const enemy = {
+    ...kind,
+    hp,
+    maxHp: hp,
+    boss: true,
+    hurt: 0,
+    bite: 0.95,
+    mesh,
+    floorY: spot.y,
+    bob: Math.random() * Math.PI * 2,
+    path: [],
+    repath: 0,
+    still: 0,
+    lx: spot.x,
+    lz: spot.z,
+    flashing: false,
+    baseEmissive: 0,
+    hitMeshes: mesh.userData.hitMeshes,
+    glowMats: mesh.userData.glowMats,
+  };
+  mesh.userData.enemy = enemy;
+  enemies.push(enemy);
+  state.bossFight = true;
+  state.spawnLeft = 0;
+  state.spawnTimer = 0;
+  hudCache = "";
+  announce("BOSS FIGHT — Brunch Titan");
   return true;
 }
 
@@ -3171,6 +3412,7 @@ function syncWaveBtn(dt) {
 }
 
 function spawnWave() {
+  state.bossFight = false;
   state.spawnLeft = waveCount();
   state.spawnTimer = 0.6;
   const tier = Math.floor(state.wave / 5);
@@ -3316,13 +3558,15 @@ function hurtPlayer(n) {
 function gameOver() {
   state.running = false;
   state.waveHold = false;
+  state.pendingBoss = false;
+  if (bossHud) bossHud.classList.remove("on");
   if (useHint) useHint.style.display = "none";
   document.exitPointerLock();
   overlay.style.display = "flex";
   menuCard.style.display = "none";
   overCard.style.display = "block";
   overText.textContent = (state.mode === "tower" ? "The kitchen fell." : "The leftovers won.") +
-    " Score " + state.score + " · Wave " + state.wave + " · Kills " + state.kills;
+    " Score " + state.score + " · " + (state.bossFight ? "Boss Fight" : "Wave " + state.wave) + " · Kills " + state.kills;
 }
 
 function clearWorldActors() {
@@ -3360,6 +3604,9 @@ function resetGame() {
   state.waveHold = false;
   state.turretStock = 0;
   state.mines = 0;
+  state.bossFight = false;
+  state.pendingBoss = false;
+  if (bossHud) bossHud.classList.remove("on");
   state.iframes = 2.4;
   state.kick = 0;
   state.ads = 0;
@@ -3452,7 +3699,7 @@ function update(dt) {
   state.kick *= Math.pow(0.002, dt);
   pathBudget = 1;
 
-  if (state.spawnLeft > 0) {
+  if (state.spawnLeft > 0 && !state.bossFight && !state.pendingBoss) {
     state.spawnTimer -= dt;
     if (state.spawnTimer <= 0) {
       if (spawnEnemy()) state.spawnLeft--;
@@ -3607,8 +3854,18 @@ function tickActors(dt) {
     }
   } else {
     if (state.running && state.spawnLeft === 0 && enemies.length === 0 && state.waveClear <= 0) {
-      state.waveClear = 10;
-      announce("All clear — next wave in 10 seconds");
+      if (state.bossFight) {
+        state.bossFight = false;
+        state.waveClear = 10;
+        announce("Boss down — next wave in 10 seconds");
+      } else if (state.wave % 5 === 0) {
+        state.pendingBoss = true;
+        state.waveClear = 6;
+        announce("All clear — Boss Fight incoming");
+      } else {
+        state.waveClear = 10;
+        announce("All clear — next wave in 10 seconds");
+      }
     }
     if (state.waveClear > 0) {
       const before = state.waveClear;
@@ -3616,13 +3873,23 @@ function tickActors(dt) {
       const nowSec = Math.ceil(state.waveClear);
       const beforeSec = Math.ceil(before);
       if (nowSec > 0 && nowSec <= 5 && nowSec !== beforeSec) {
-        announce("Next wave in " + nowSec);
+        announce(state.pendingBoss ? "Boss Fight in " + nowSec : "Next wave in " + nowSec);
       }
       if (state.waveClear <= 0) {
-        state.wave++;
-        state.hp = Math.min(100, state.hp + 18);
-        WEAPONS.forEach((wp) => { wp.reserve += Math.ceil(wp.max * 0.6); });
-        spawnWave();
+        if (state.pendingBoss) {
+          state.pendingBoss = false;
+          if (!spawnBoss()) {
+            state.wave++;
+            state.hp = Math.min(100, state.hp + 18);
+            WEAPONS.forEach((wp) => { wp.reserve += Math.ceil(wp.max * 0.6); });
+            spawnWave();
+          }
+        } else {
+          state.wave++;
+          state.hp = Math.min(100, state.hp + 18);
+          WEAPONS.forEach((wp) => { wp.reserve += Math.ceil(wp.max * 0.6); });
+          spawnWave();
+        }
       }
     }
   }
@@ -3661,16 +3928,28 @@ function drawWeapon() {
 function syncHud() {
   const w = currentWeapon();
   const ammo = state.reloading > 0 ? "reloading…" : w.mag + " / " + w.reserve + " " + w.ammoName;
-  const key = state.hp + "|" + state.baseHp + "|" + state.mode + "|" + state.score + "|" + state.kills + "|" + state.wave + "|" + w.name + "|" + ammo + "|" + state.mines;
+  const boss = enemies.find((e) => e.boss && !e.dead);
+  const bossHp = boss ? Math.max(0, Math.ceil(boss.hp)) : 0;
+  const key = state.hp + "|" + state.baseHp + "|" + state.mode + "|" + state.score + "|" + state.kills + "|" + state.wave + "|" + w.name + "|" + ammo + "|" + state.mines + "|" + state.bossFight + "|" + bossHp;
   if (key === hudCache) return;
   hudCache = key;
   hudHp.textContent = Math.ceil(state.hp);
   hudBar.style.width = state.hp + "%";
   hudScore.textContent = state.score;
   hudKills.textContent = state.kills;
-  hudWave.textContent = state.wave;
+  hudWave.textContent = state.bossFight ? "Boss Fight" : state.wave;
+  hudWave.classList.toggle("boss-round", state.bossFight);
+  if (hudWaveLabel) hudWaveLabel.textContent = state.bossFight ? "Round" : "Wave";
   hudWep.textContent = w.name;
   hudAmmo.textContent = ammo;
+  if (bossHud) {
+    bossHud.classList.toggle("on", !!(state.bossFight && boss));
+    if (boss) {
+      hudBoss.textContent = bossHp;
+      hudBossBar.style.width = Math.max(0, Math.min(100, (boss.hp / boss.maxHp) * 100)) + "%";
+      if (hudBossLabel) hudBossLabel.textContent = "Boss Fight · " + boss.name;
+    }
+  }
   if (state.mode === "tower") {
     hudBase.textContent = Math.ceil(state.baseHp);
     hudBaseBar.style.width = (state.baseHp / 10) + "%";
