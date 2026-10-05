@@ -17,8 +17,8 @@ Agent Scramble is a wave shooter set in diner country. You fight Hangry Eggs, Ro
 
 Two modes:
 
-- **Lot Raid** — hunt leftovers across the diner block, kitchen deck, and Salsa Cantina. Stomach HP is yours. Next wave starts 10 seconds after the last leftover dies.
-- **Tower Kitchen** — hold a diner hallway. The kitchen has **1000 HP**. Leftovers chew it when they reach the counter. Hit **ORDER UP** to start each wave. Buy **Toaster Turrets** (500, then 1500 score) and **Landmines** (200 score, **G** to plant) in the Upgrades room behind the bar.
+- **Lot Raid** — hunt leftovers across the diner block, kitchen deck, and Salsa Cantina. Stomach HP is yours. Next wave starts 10 seconds after the last leftover dies. Full ammo restock is on the diner’s third-floor deck (**200** score, look and press **E**).
+- **Tower Kitchen** — hold a diner hallway. The kitchen has **1000 HP**. Leftovers chew it when they reach the counter. Hit **ORDER UP** to start leftover waves and boss fights (every 5th leftover wave). In the Upgrades room: **Toaster Turrets** (500, then 1500), **Espresso Cannons** (2000, then 4000, plant on tables with **E**), **Landmines** (200, **G** to plant), **Ammo Restock** (200, **T** anytime), and **Pack-a-Punch** (6000 per gun, irreversible).
 
 ## Controls
 
@@ -31,8 +31,9 @@ Two modes:
 | 1–3 / scroll | Swap the three guns in your Loadout |
 | Shift | Aim (Marksman 2× scope, Link Launcher 1.5× irons) |
 | R | Reload |
-| E | ORDER UP / buy from the shop (Tower Kitchen) |
+| E | ORDER UP / buy from the shop / plant Espresso Cannon (Tower Kitchen) |
 | G | Plant a landmine (Tower Kitchen) |
+| T | Full ammo restock for 200 score (Tower Kitchen, anytime) |
 | Esc | Pause (unlocks the mouse) |
 
 ## Armory

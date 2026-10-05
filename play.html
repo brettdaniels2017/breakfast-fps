@@ -309,8 +309,8 @@
       <h1>Agent Scramble</h1>
       <p>Pack a Loadout, pick a mode, then scramble. Choose <b>exactly 3</b> of the 7 weapons.</p>
       <div class="modes">
-        <button type="button" class="mode-pick on" id="modeRaid">Lot Raid<small>Hunt leftovers across the diner block</small></button>
-        <button type="button" class="mode-pick" id="modeTower">Tower Kitchen<small>Hold the diner hallway. Hit ORDER UP to start each wave. Kitchen has 1000 HP.</small></button>
+        <button type="button" class="mode-pick on" id="modeRaid">Lot Raid<small>Hunt leftovers across the diner block. Ammo restock is on the third floor (200 score).</small></button>
+        <button type="button" class="mode-pick" id="modeTower">Tower Kitchen<small>Hold the diner hallway. ORDER UP starts waves and boss fights. Pack-a-Punch is 6000 a gun.</small></button>
       </div>
       <div class="loadout" id="loadout"></div>
       <div id="loadoutHint">Pick 3 weapons</div>
@@ -320,7 +320,7 @@
         <div><b>Mouse</b> look around</div>
         <div><b>Click</b> fire</div>
         <div><b>1–3 / scroll</b> swap Loadout</div>
-        <div><b>Shift</b> aim · <b>R</b> reload · <b>E</b> ORDER UP / shop · <b>G</b> plant mine · <b>Esc</b> pause</div>
+        <div><b>Shift</b> aim · <b>R</b> reload · <b>E</b> ORDER UP / shop · <b>G</b> plant mine · <b>T</b> ammo (200) · <b>Esc</b> pause</div>
       </div>
       <button id="startBtn" disabled>Start Agent Scramble</button>
       <p style="margin:16px 0 0;"><a href="./" style="color:#e8c48a;font-size:14px;font-weight:600;">← Promo page</a></p>
@@ -449,6 +449,7 @@ const state = {
   didWave: false,
   waveHold: false,
   turretStock: 0,
+  espressoStock: 0,
   mines: 0,
   bossFight: false,
   pendingBoss: false,
@@ -459,17 +460,34 @@ const HALL_LEN = 38;
 const KITCHEN_FRONT = -0.6;
 const TURRET_COSTS = [500, 1500];
 const TURRET_RANGE = 13.5;
+const ESPRESSO_COSTS = [2000, 4000];
+const ESPRESSO_RANGE = 18;
+const AMMO_COST = 200;
 const MINE_COST = 200;
+const PAP_COST = 6000;
+const PAP_NAMES = {
+  "Toast Launcher": "Burnt Howitzer",
+  "Bacon Lash": "Inferno Lash",
+  "Syrup Shotgun": "Magma Glugger",
+  "Espresso SMG": "Double Shot",
+  "Pancake Frisbee": "Flaming Stack",
+  "Maple Marksman": "Dark Maple",
+  "Link Launcher": "Hell Link",
+};
 const MINE_DMG = 130;
 const MINE_SPLASH = 2.5;
 const MINE_BAG = 8;
 const turretPads = [];
+const tablePads = [];
 const turrets = [];
 const mines = [];
 let waveBtn = null;
 let waveBtnGlow = null;
 let shopStand = null;
 let mineStand = null;
+let espressoStand = null;
+let ammoStand = null;
+let punchStand = null;
 const worldLayer = new THREE.Group();
 const scene = new THREE.Scene();
 scene.add(worldLayer);
@@ -1165,6 +1183,8 @@ function wmesh(geo, color, x, y, z, rx = 0, ry = 0, rz = 0, metal = 0.18) {
     emissive: color,
     emissiveIntensity: 0.12,
   }));
+  m.userData.baseColor = color;
+  m.userData.baseMetal = metal;
   m.position.set(x, y, z);
   m.rotation.set(rx, ry, rz);
   return m;
@@ -1240,6 +1260,7 @@ function buildWeapons() {
     new THREE.MeshBasicMaterial({ color: 0xf2b33a })
   );
   tip.position.set(0, 0.098, -0.335);
+  tip.userData.baseColor = 0xf2b33a;
   rocket.add(tip);
   rocket.userData.tip = tip;
 
@@ -1525,7 +1546,7 @@ function addUmbrella(x, z) {
 
 function inPlayLot(x, z) {
   if (state.mode === "tower") {
-    return Math.abs(x) < HALL_HALF - 0.35 && z < 10.3 && z > -HALL_LEN + 0.6;
+    return Math.abs(x) < HALL_HALF - 0.35 && z < 15.1 && z > -HALL_LEN + 0.6;
   }
   const p = 2.6;
   if (x >= -28 + p && x <= 28 - p && z >= -28 + p && z <= 28 - p) return true;
@@ -2033,6 +2054,26 @@ function buildDiner() {
   addRail(7.2, 0.16, 18.6, 4.95, -7.95, chrome);
   addRail(0.16, 7.2, 22.15, 4.95, -11.5, chrome);
 
+  place(1.7, 0.88, 1.15, woodMat, 20.15, 4.95, -13.65);
+  const raidAmmo = makeAmmoCrateMesh();
+  raidAmmo.position.set(20.15, 5.83, -13.65);
+  scene.add(raidAmmo);
+  ammoStand = raidAmmo;
+  const ammoTex = tex((g, w, h) => {
+    g.fillStyle = "#2a120e";
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = "#f2b33a";
+    g.font = "bold 32px sans-serif";
+    g.textAlign = "center";
+    g.fillText("AMMO RESTOCK", w / 2, h * 0.42);
+    g.font = "bold 26px sans-serif";
+    g.fillText("200 SCORE", w / 2, h * 0.78);
+  }, 512, 160);
+  twoFaceSign(1.7, 0.4, new THREE.MeshStandardMaterial({ map: ammoTex, emissive: 0xff8a20, emissiveIntensity: 0.3 }), 20.15, 7.05, -13.65, Math.PI / 2);
+  const ammoLamp = new THREE.PointLight(0xffe0a0, 10, 8);
+  ammoLamp.position.set(20.15, 7.2, -13.65);
+  scene.add(ammoLamp);
+
   addBar(0, 9.4, 11, 1.6, 0, woodMat, chrome);
   box(1.4, 0.85, 0.7, new THREE.MeshStandardMaterial({ color: 0x7a2a22, roughness: 0.45 }), -4.2, 1.65, 9.35);
   box(1.25, 0.55, 0.55, new THREE.MeshStandardMaterial({ color: 0xf6e6c8, roughness: 0.55 }), -4.2, 1.95, 9.35);
@@ -2168,6 +2209,61 @@ function makeToasterMesh() {
   const lever = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.16, 0.06), new THREE.MeshStandardMaterial({ color: 0xc43c2c, roughness: 0.4 }));
   lever.position.set(0.36, 0.26, 0);
   g.add(body, slotA, slotB, toast, lever);
+  return g;
+}
+
+function makeEspressoMesh() {
+  const g = new THREE.Group();
+  const chrome = new THREE.MeshStandardMaterial({ color: 0xcfd8de, roughness: 0.26, metalness: 0.78 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x2a1a12, roughness: 0.48, metalness: 0.2 });
+  const red = new THREE.MeshStandardMaterial({ color: 0xc43c2c, roughness: 0.4 });
+  const brew = new THREE.MeshStandardMaterial({ color: 0x3b2418, roughness: 0.45, emissive: 0x4a1808, emissiveIntensity: 0.18 });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.62, 0.36), chrome);
+  body.position.y = 0.34;
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.18, 0.32), dark);
+  head.position.y = 0.72;
+  const group = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.16, 10), chrome);
+  group.position.set(0, 0.52, -0.2);
+  const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.07, 0.1, 10), new THREE.MeshStandardMaterial({ color: 0xf7f1e6, roughness: 0.55 }));
+  cup.position.set(0, 0.2, -0.22);
+  const coffee = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 0.03, 10), brew);
+  coffee.position.set(0, 0.26, -0.22);
+  const wand = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.28, 8), chrome);
+  wand.rotation.z = 0.55;
+  wand.position.set(0.28, 0.48, 0);
+  const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.05, 10), red);
+  knob.rotation.z = Math.PI / 2;
+  knob.position.set(0.27, 0.4, 0.08);
+  g.add(body, head, group, cup, coffee, wand, knob);
+  return g;
+}
+
+function makeAmmoCrateMesh() {
+  const g = new THREE.Group();
+  const wood = new THREE.MeshStandardMaterial({ color: 0x6b3a1f, roughness: 0.7 });
+  const crate = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.42, 0.5), wood);
+  crate.position.y = 0.21;
+  const strap = new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.06, 0.08), new THREE.MeshStandardMaterial({ color: 0xf2b33a, roughness: 0.45 }));
+  strap.position.y = 0.21;
+  const toast = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.18, 0.06), new THREE.MeshStandardMaterial({ color: 0xe0a24a, roughness: 0.6 }));
+  toast.position.set(-0.12, 0.5, 0.04);
+  const mag = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.22, 0.1), new THREE.MeshStandardMaterial({ color: 0x3b2418, roughness: 0.5 }));
+  mag.position.set(0.16, 0.52, -0.02);
+  g.add(crate, strap, toast, mag);
+  return g;
+}
+
+function makePunchMesh() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.15, 0.7), new THREE.MeshStandardMaterial({ color: 0x1a0a24, roughness: 0.45, metalness: 0.35, emissive: 0x4a1060, emissiveIntensity: 0.28 }));
+  body.position.y = 0.58;
+  const rim = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.08, 0.76), new THREE.MeshStandardMaterial({ color: 0xf2c14a, roughness: 0.3, metalness: 0.7, emissive: 0xff8a20, emissiveIntensity: 0.35 }));
+  rim.position.y = 1.18;
+  const slot = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.12, 0.18), new THREE.MeshStandardMaterial({ color: 0xff4ad6, roughness: 0.25, emissive: 0xff4ad6, emissiveIntensity: 0.7 }));
+  slot.position.set(0, 0.72, -0.28);
+  const coil = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.03, 8, 16), new THREE.MeshStandardMaterial({ color: 0x9b8cff, roughness: 0.25, metalness: 0.6, emissive: 0x7a5cff, emissiveIntensity: 0.5 }));
+  coil.position.set(0, 0.95, -0.28);
+  g.add(body, rim, slot, coil);
   return g;
 }
 
@@ -2357,8 +2453,8 @@ function buildTower() {
   scene.add(yard);
   addSolid(0, hallZ + 2, HALL_HALF + 1, HALL_LEN * 0.5 + 8, 0, 0.04, { block: false, stand: true });
 
-  const hallFloor = new THREE.Mesh(new THREE.BoxGeometry(HALL_HALF * 2, 0.08, HALL_LEN + 14), floorMat);
-  hallFloor.position.set(0, 0.04, hallZ + 3.4);
+  const hallFloor = new THREE.Mesh(new THREE.BoxGeometry(HALL_HALF * 2, 0.08, HALL_LEN + 20), floorMat);
+  hallFloor.position.set(0, 0.04, hallZ + 6.4);
   scene.add(hallFloor);
 
   place(0.45, 3.22, HALL_LEN, cream, HALL_HALF + 0.22, 0, hallZ);
@@ -2370,12 +2466,12 @@ function buildTower() {
   visBox(0.1, 0.14, HALL_LEN, woodMat, HALL_HALF - 0.02, 3.12, hallZ);
   visBox(0.1, 0.14, HALL_LEN, woodMat, -(HALL_HALF - 0.02), 3.12, hallZ);
   place(HALL_HALF * 2 + 0.9, 3.22, 0.45, cream, 0, 0, -HALL_LEN);
-  place(0.45, 3.22, 8.4, tileMat, HALL_HALF + 0.22, 0, 6.4);
-  place(0.45, 3.22, 8.4, tileMat, -(HALL_HALF + 0.22), 0, 6.4);
-  place(HALL_HALF * 2 + 0.9, 3.22, 0.45, tileMat, 0, 0, 10.55);
+  place(0.45, 3.22, 13.2, tileMat, HALL_HALF + 0.22, 0, 8.8);
+  place(0.45, 3.22, 13.2, tileMat, -(HALL_HALF + 0.22), 0, 8.8);
+  place(HALL_HALF * 2 + 0.9, 3.22, 0.45, tileMat, 0, 0, 15.4);
 
-  const roof = new THREE.Mesh(new THREE.BoxGeometry(HALL_HALF * 2 + 1.8, 0.32, 14.8), cream);
-  roof.position.set(0, 3.38, 3.4);
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(HALL_HALF * 2 + 1.8, 0.32, 20.4), cream);
+  roof.position.set(0, 3.38, 5.2);
   scene.add(roof);
   const cap = new THREE.Mesh(new THREE.BoxGeometry(HALL_HALF * 2 + 2.1, 0.42, 1.15), red);
   cap.position.set(0, 3.72, 3.4);
@@ -2403,19 +2499,22 @@ function buildTower() {
     const z = -3.2 - i * 3.55;
     const rightTable = addVisualBooth(1, z, vinyl, vinylDark, chrome, woodMat, cream, napkin);
     const leftTable = addVisualBooth(-1, z + 0.4, vinyl, vinylDark, chrome, woodMat, cream, napkin);
-    if (i === 1) {
-      const padMat = new THREE.MeshStandardMaterial({ color: 0xf2b33a, roughness: 0.4, metalness: 0.2, emissive: 0xc45c2c, emissiveIntensity: 0.28 });
-      for (const table of [rightTable, leftTable]) {
-        const mesh = visBox(0.3, 0.04, 0.3, padMat, table.x, table.y, table.z);
-        turretPads.push({
-          mesh,
-          x: table.x,
-          y: table.y + 0.04,
-          z: table.z,
-          side: table.x > 0 ? 1 : -1,
-          filled: false,
-        });
+    for (const table of [rightTable, leftTable]) {
+      const pad = {
+        x: table.x,
+        y: table.y + 0.04,
+        z: table.z,
+        side: table.x > 0 ? 1 : -1,
+        filled: false,
+        toaster: i === 1,
+        mesh: null,
+      };
+      if (i === 1) {
+        const padMat = new THREE.MeshStandardMaterial({ color: 0xf2b33a, roughness: 0.4, metalness: 0.2, emissive: 0xc45c2c, emissiveIntensity: 0.28 });
+        pad.mesh = visBox(0.3, 0.04, 0.3, padMat, table.x, table.y, table.z);
+        turretPads.push(pad);
       }
+      tablePads.push(pad);
     }
     const winY = 2.22;
     visBox(0.04, 0.92, 1.35, chrome, HALL_HALF - 0.05, winY, z);
@@ -2459,28 +2558,36 @@ function buildTower() {
   clock.position.set(3.4, 2.55, 5.32);
   scene.add(clock);
 
-  const upFloor = new THREE.Mesh(new THREE.BoxGeometry(HALL_HALF * 2 - 0.2, 0.1, 4.8), floorMat);
-  upFloor.position.set(0, 0.06, 7.85);
+  const upFloor = new THREE.Mesh(new THREE.BoxGeometry(HALL_HALF * 2 - 0.2, 0.1, 9.8), floorMat);
+  upFloor.position.set(0, 0.06, 10.5);
   scene.add(upFloor);
-  visBox(0.08, 1.12, 5.2, vinyl, HALL_HALF - 0.02, 0.56, 7.9);
-  visBox(0.08, 1.12, 5.2, vinyl, -(HALL_HALF - 0.02), 0.56, 7.9);
-  visBox(0.06, 0.08, 5.2, chrome, HALL_HALF - 0.01, 1.14, 7.9);
-  visBox(0.06, 0.08, 5.2, chrome, -(HALL_HALF - 0.01), 1.14, 7.9);
-  visBox(HALL_HALF * 2 - 0.6, 0.06, 0.16, chrome, 0, 3.36, 7.9);
+  visBox(0.08, 1.12, 10.2, vinyl, HALL_HALF - 0.02, 0.56, 10.5);
+  visBox(0.08, 1.12, 10.2, vinyl, -(HALL_HALF - 0.02), 0.56, 10.5);
+  visBox(0.06, 0.08, 10.2, chrome, HALL_HALF - 0.01, 1.14, 10.5);
+  visBox(0.06, 0.08, 10.2, chrome, -(HALL_HALF - 0.01), 1.14, 10.5);
+  visBox(HALL_HALF * 2 - 0.6, 0.06, 0.16, chrome, 0, 3.36, 10.5);
   const upLamp = new THREE.PointLight(0xffd9a0, 14, 11);
-  upLamp.position.set(0, 3.05, 7.9);
+  upLamp.position.set(0, 3.05, 8.4);
   scene.add(upLamp);
+  const upLamp2 = new THREE.PointLight(0xffd9a0, 14, 11);
+  upLamp2.position.set(0, 3.05, 13.2);
+  scene.add(upLamp2);
   const upShade = new THREE.Mesh(
     new THREE.ConeGeometry(0.34, 0.28, 12, 1, true),
     new THREE.MeshStandardMaterial({ color: 0xc43c2c, side: THREE.DoubleSide, roughness: 0.45, emissive: 0x4a120c, emissiveIntensity: 0.2 })
   );
-  upShade.position.set(0, 3.18, 7.9);
+  upShade.position.set(0, 3.18, 8.4);
   scene.add(upShade);
+  const upShade2 = upShade.clone();
+  upShade2.position.z = 13.2;
+  scene.add(upShade2);
   visBox(HALL_HALF * 2 - 0.8, 0.1, 0.16, chrome, 0, 3.12, 5.35);
   visBox(0.12, 3.1, 0.16, chrome, -4.55, 1.55, 5.35);
   visBox(0.12, 3.1, 0.16, chrome, 4.55, 1.55, 5.35);
-  place(2.8, 0.9, 1.05, woodMat, -2.4, 0, 9.55);
-  place(2.8, 0.9, 1.05, woodMat, 2.4, 0, 9.55);
+  place(2.2, 0.9, 1.15, woodMat, -3.15, 0, 9.55);
+  place(2.2, 0.9, 1.15, woodMat, 3.15, 0, 9.55);
+  place(2.2, 0.9, 1.15, woodMat, -3.15, 0, 13.85);
+  place(2.2, 0.9, 1.15, woodMat, 3.15, 0, 13.85);
   const upTex = tex((g, w, h) => {
     g.fillStyle = "#2a120e";
     g.fillRect(0, 0, w, h);
@@ -2490,41 +2597,54 @@ function buildTower() {
     g.fillText("UPGRADES", w / 2, h * 0.68);
   }, 512, 128);
   const upMat = new THREE.MeshStandardMaterial({ map: upTex, emissive: 0xff8a20, emissiveIntensity: 0.45 });
-  twoFaceSign(3.4, 0.7, upMat, 0, 2.55, 10.28, 0);
+  twoFaceSign(3.4, 0.7, upMat, 0, 2.55, 15.12, 0);
   twoFaceSign(2.2, 0.28, upMat, 0, 2.95, 5.38, 0);
 
+  function shopSign(title, price, x, z) {
+    const t = tex((g, w, h) => {
+      g.fillStyle = "#2a120e";
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = "#f2b33a";
+      g.font = "bold 32px sans-serif";
+      g.textAlign = "center";
+      g.fillText(title, w / 2, h * 0.42);
+      g.font = "bold 26px sans-serif";
+      g.fillText(price, w / 2, h * 0.78);
+    }, 512, 160);
+    twoFaceSign(1.7, 0.4, new THREE.MeshStandardMaterial({ map: t, emissive: 0xff8a20, emissiveIntensity: 0.3 }), x, 2.22, z, Math.PI);
+  }
+
   const shopToasts = makeToasterMesh();
-  shopToasts.position.set(2.4, 0.92, 9.35);
+  shopToasts.position.set(3.15, 0.92, 9.35);
   scene.add(shopToasts);
   shopStand = shopToasts;
-  const shopTex = tex((g, w, h) => {
-    g.fillStyle = "#2a120e";
-    g.fillRect(0, 0, w, h);
-    g.fillStyle = "#f2b33a";
-    g.font = "bold 36px sans-serif";
-    g.textAlign = "center";
-    g.fillText("TOASTER TURRET", w / 2, h * 0.42);
-    g.font = "bold 28px sans-serif";
-    g.fillText("500 / 1500 SCORE", w / 2, h * 0.78);
-  }, 512, 160);
-  twoFaceSign(1.8, 0.42, new THREE.MeshStandardMaterial({ map: shopTex, emissive: 0xff8a20, emissiveIntensity: 0.3 }), 2.4, 2.22, 9.35, Math.PI);
+  shopSign("TOASTER TURRET", "500 / 1500", 3.15, 9.35);
 
   const shopMine = makeMineMesh();
-  shopMine.position.set(-2.4, 0.94, 9.35);
+  shopMine.position.set(-3.15, 0.94, 9.35);
   shopMine.scale.setScalar(1.35);
   scene.add(shopMine);
   mineStand = shopMine;
-  const mineTex = tex((g, w, h) => {
-    g.fillStyle = "#2a120e";
-    g.fillRect(0, 0, w, h);
-    g.fillStyle = "#f2b33a";
-    g.font = "bold 36px sans-serif";
-    g.textAlign = "center";
-    g.fillText("LANDMINE", w / 2, h * 0.42);
-    g.font = "bold 28px sans-serif";
-    g.fillText(MINE_COST + " SCORE", w / 2, h * 0.78);
-  }, 512, 160);
-  twoFaceSign(1.8, 0.42, new THREE.MeshStandardMaterial({ map: mineTex, emissive: 0xff8a20, emissiveIntensity: 0.3 }), -2.4, 2.22, 9.35, Math.PI);
+  shopSign("LANDMINE", MINE_COST + " SCORE", -3.15, 9.35);
+
+  const shopEspresso = makeEspressoMesh();
+  shopEspresso.position.set(3.15, 0.92, 13.65);
+  scene.add(shopEspresso);
+  espressoStand = shopEspresso;
+  shopSign("ESPRESSO CANNON", "2000 / 4000", 3.15, 13.65);
+
+  const shopAmmo = makeAmmoCrateMesh();
+  shopAmmo.position.set(-3.15, 0.92, 13.65);
+  scene.add(shopAmmo);
+  ammoStand = shopAmmo;
+  shopSign("AMMO RESTOCK", "200  ·  T ANYTIME", -3.15, 13.65);
+
+  place(1.9, 0.9, 1.2, woodMat, 0, 0, 11.55);
+  const punch = makePunchMesh();
+  punch.position.set(0, 0.92, 11.5);
+  scene.add(punch);
+  punchStand = punch;
+  shopSign("PACK-A-PUNCH", PAP_COST + " / GUN", 0, 11.55);
 
   const neonTex = tex((g, w, h) => {
     g.fillStyle = "#2a120e";
@@ -2797,7 +2917,9 @@ function applyZoom() {
 
 function fillKit() {
   WEAPONS.length = 0;
-  [...picked].sort((a, b) => a - b).forEach((i) => WEAPONS.push(ARMORY[i]));
+  [...picked].sort((a, b) => a - b).forEach((i) => {
+    WEAPONS.push(Object.assign({ armoryIndex: i, packed: false }, ARMORY[i]));
+  });
   if (state.weapon >= WEAPONS.length) state.weapon = 0;
 }
 
@@ -2836,6 +2958,7 @@ function withWorld(fn) {
 }
 
 function rebuildWorld() {
+  state.builtMode = "";
   clearWorldActors();
   while (worldLayer.children.length) worldLayer.remove(worldLayer.children[0]);
   solidGrid.clear();
@@ -2844,10 +2967,14 @@ function rebuildWorld() {
   stairWays.length = 0;
   spawnPoints.length = 0;
   turretPads.length = 0;
+  tablePads.length = 0;
   waveBtn = null;
   waveBtnGlow = null;
   shopStand = null;
   mineStand = null;
+  espressoStand = null;
+  ammoStand = null;
+  punchStand = null;
   withWorld(() => {
     if (state.mode === "tower") buildTower();
     else buildDiner();
@@ -2883,6 +3010,8 @@ function announce(text) {
 const sparkGeo = new THREE.SphereGeometry(0.08, 6, 6);
 const cakeGeo = new THREE.CylinderGeometry(0.28, 0.28, 0.08, 12);
 const cakeMat = new THREE.MeshLambertMaterial({ color: 0xf2b33a });
+const shotGeo = new THREE.SphereGeometry(0.09, 8, 8);
+const shotMat = new THREE.MeshLambertMaterial({ color: 0x4a2410 });
 const linkGeo = new THREE.CapsuleGeometry(0.1, 0.18, 4, 8);
 const linkRingGeo = new THREE.TorusGeometry(0.1, 0.016, 6, 8);
 const linkMat = new THREE.MeshStandardMaterial({ color: 0xc45c2c, roughness: 0.42, emissive: 0x4a1408, emissiveIntensity: 0.22 });
@@ -3196,18 +3325,132 @@ function lookingAtMineShop() {
   return lookingAtPos(tmp2.x, tmp2.y + 0.15, tmp2.z, 4.2, 0.62);
 }
 
+function lookingAtEspressoShop() {
+  if (!espressoStand || state.mode !== "tower") return false;
+  espressoStand.getWorldPosition(tmp2);
+  return lookingAtPos(tmp2.x, tmp2.y + 0.25, tmp2.z, 4.2, 0.62);
+}
+
+function lookingAtAmmoShop() {
+  if (!ammoStand) return false;
+  ammoStand.getWorldPosition(tmp2);
+  return lookingAtPos(tmp2.x, tmp2.y + 0.2, tmp2.z, 4.2, 0.62);
+}
+
+function lookingAtPunch() {
+  if (!punchStand || state.mode !== "tower") return false;
+  punchStand.getWorldPosition(tmp2);
+  return lookingAtPos(tmp2.x, tmp2.y + 0.4, tmp2.z, 4.4, 0.58);
+}
+
+function papColor(hex) {
+  const r = (hex >> 16) & 255;
+  const g = (hex >> 8) & 255;
+  const b = hex & 255;
+  if (r > 140 && g > 90 && b < 120) return 0xffe066;
+  if (r > 140 && r >= g && r >= b) return 0xff4ad6;
+  if (g > r && g > b) return 0x6bff9a;
+  if (Math.abs(r - g) < 35 && Math.abs(g - b) < 35) return 0xc9b8ff;
+  return 0x4a148c;
+}
+
+function paintPacked(model, packed) {
+  if (!model) return;
+  model.traverse((o) => {
+    if (!o.isMesh || !o.material || !o.material.color) return;
+    if (o.userData.baseColor == null) o.userData.baseColor = o.material.color.getHex();
+    if (!packed) {
+      o.material.color.setHex(o.userData.baseColor);
+      if (o.material.emissive) {
+        o.material.emissive.setHex(o.userData.baseColor);
+        o.material.emissiveIntensity = 0.12;
+      }
+      if (o.userData.baseMetal != null) o.material.metalness = o.userData.baseMetal;
+      return;
+    }
+    const next = papColor(o.userData.baseColor);
+    o.material.color.setHex(next);
+    if (o.material.emissive) {
+      o.material.emissive.setHex(next);
+      o.material.emissiveIntensity = 0.42;
+    }
+    if (o.material.metalness != null) o.material.metalness = Math.max(o.material.metalness, 0.55);
+  });
+}
+
+function packWeapon(w) {
+  if (!w || w.packed) return false;
+  w.packed = true;
+  w.name = PAP_NAMES[w.name] || ("Packed " + w.name);
+  w.dmg = Math.round(w.dmg * 1.85);
+  if (w.rpm <= 160) w.rpm = Math.round(w.rpm * 1.5);
+  if (w.splash) w.splash = Math.round(w.splash * 125) / 100;
+  w.color = "#ff4ad6";
+  paintPacked(weaponModels[w.armoryIndex], true);
+  return true;
+}
+
+function buyPunch() {
+  if (state.mode !== "tower" || !state.running || state.paused) return false;
+  if (!lookingAtPunch()) return false;
+  const w = currentWeapon();
+  if (!w) return true;
+  if (w.packed) {
+    announce("Already packed — " + w.name);
+    return true;
+  }
+  if (state.score < PAP_COST) {
+    announce("Need " + PAP_COST + " score");
+    return true;
+  }
+  state.score -= PAP_COST;
+  packWeapon(w);
+  hudCache = "";
+  syncHud();
+  announce("PACKED — " + w.name);
+  return true;
+}
+
+function lookingAtTablePad() {
+  if (state.mode !== "tower") return null;
+  camera.getWorldPosition(tmp);
+  camera.getWorldDirection(lookDir);
+  let best = null;
+  let bestScore = 0;
+  for (const pad of tablePads) {
+    if (pad.filled) continue;
+    tmp2.set(pad.x, pad.y + 0.2, pad.z);
+    const dist = tmp.distanceTo(tmp2);
+    if (dist > 4.4) continue;
+    tmp2.sub(tmp).normalize();
+    const dot = lookDir.dot(tmp2);
+    if (dot < 0.55) continue;
+    const score = dot * 4 - dist * 0.12;
+    if (score > bestScore) { bestScore = score; best = pad; }
+  }
+  return best;
+}
+
 function nextTurretCost() {
   const n = turretPads.filter((p) => p.filled).length;
   return TURRET_COSTS[n];
 }
 
-function deployTurret(pad) {
+function espressoOwned() {
+  return turrets.filter((t) => t.kind === "espresso").length + state.espressoStock;
+}
+
+function nextEspressoCost() {
+  return ESPRESSO_COSTS[espressoOwned()];
+}
+
+function deployTurret(pad, kind) {
   pad.filled = true;
-  const mesh = makeToasterMesh();
+  const mesh = kind === "espresso" ? makeEspressoMesh() : makeToasterMesh();
   mesh.position.set(pad.x, pad.y, pad.z);
   mesh.rotation.y = pad.side > 0 ? Math.PI / 2 : -Math.PI / 2;
   scene.add(mesh);
-  turrets.push({ mesh, pad, cool: 0.2 });
+  turrets.push({ mesh, pad, cool: 0.2, kind: kind || "toaster" });
 }
 
 function buyTurret() {
@@ -3226,8 +3469,77 @@ function buyTurret() {
   state.score -= cost;
   hudCache = "";
   syncHud();
-  deployTurret(pad);
-  announce(turrets.length === 1 ? "Toaster Turret deployed" : "Second Toaster Turret deployed");
+  deployTurret(pad, "toaster");
+  announce(turrets.filter((t) => t.kind === "toaster").length === 1 ? "Toaster Turret deployed" : "Second Toaster Turret deployed");
+  return true;
+}
+
+function buyEspresso() {
+  if (state.mode !== "tower" || !state.running || state.paused) return false;
+  if (!lookingAtEspressoShop()) return false;
+  if (espressoOwned() >= ESPRESSO_COSTS.length) {
+    announce("Max 2 Espresso Cannons");
+    return true;
+  }
+  const cost = nextEspressoCost();
+  if (state.score < cost) {
+    announce("Need " + cost + " score");
+    return true;
+  }
+  state.score -= cost;
+  state.espressoStock++;
+  hudCache = "";
+  syncHud();
+  announce("Espresso Cannon ready · look at a table and press E");
+  return true;
+}
+
+function plantEspresso() {
+  if (state.mode !== "tower" || !state.running || state.paused) return false;
+  if (state.espressoStock < 1) return false;
+  const pad = lookingAtTablePad();
+  if (!pad) return false;
+  state.espressoStock--;
+  deployTurret(pad, "espresso");
+  hudCache = "";
+  syncHud();
+  announce("Espresso Cannon on the table");
+  return true;
+}
+
+function startReserve(w) {
+  return w.max * (w.name === "Espresso SMG" ? 3 : 4);
+}
+
+function gunsNeedAmmo() {
+  return WEAPONS.some((w) => w.mag < w.max || w.reserve < startReserve(w));
+}
+
+function fillAllGuns() {
+  WEAPONS.forEach((w) => {
+    w.mag = w.max;
+    w.reserve = startReserve(w);
+  });
+  state.reloading = 0;
+}
+
+function buyAmmoRestock(fromShop) {
+  if (!state.running || state.paused) return false;
+  if (state.mode !== "tower" && state.mode !== "raid") return false;
+  if ((fromShop || state.mode === "raid") && !lookingAtAmmoShop()) return false;
+  if (!gunsNeedAmmo()) {
+    announce("Guns already full");
+    return true;
+  }
+  if (state.score < AMMO_COST) {
+    announce("Need " + AMMO_COST + " score");
+    return true;
+  }
+  state.score -= AMMO_COST;
+  fillAllGuns();
+  hudCache = "";
+  syncHud();
+  announce("Full ammo restock (−" + AMMO_COST + ")");
   return true;
 }
 
@@ -3320,6 +3632,18 @@ function tickMines(dt) {
 function pressWaveButton() {
   if (state.mode !== "tower" || !state.waveHold || !state.running || state.paused) return false;
   if (!lookingAtWaveBtn()) return false;
+  if (state.pendingBoss) {
+    state.pendingBoss = false;
+    state.waveHold = false;
+    if (!spawnBoss()) {
+      state.wave++;
+      state.hp = Math.min(100, state.hp + 18);
+      WEAPONS.forEach((wp) => { wp.reserve += Math.ceil(wp.max * 0.6); });
+      spawnWave();
+      announce("Order up — wave " + state.wave);
+    }
+    return true;
+  }
   if (state.didWave) {
     state.wave++;
     state.hp = Math.min(100, state.hp + 18);
@@ -3332,8 +3656,9 @@ function pressWaveButton() {
   return true;
 }
 
-function tryTowerUse() {
-  return buyMine() || buyTurret() || pressWaveButton();
+function tryUse() {
+  if (state.mode === "raid") return buyAmmoRestock(true);
+  return buyMine() || buyTurret() || buyEspresso() || buyAmmoRestock(true) || buyPunch() || plantEspresso() || pressWaveButton();
 }
 
 function tickTurrets(dt) {
@@ -3341,10 +3666,12 @@ function tickTurrets(dt) {
   for (const t of turrets) {
     t.cool -= dt;
     if (t.cool > 0) continue;
+    const espresso = t.kind === "espresso";
+    const range = espresso ? ESPRESSO_RANGE : TURRET_RANGE;
     let best = null;
-    let bestD = TURRET_RANGE * TURRET_RANGE;
+    let bestD = range * range;
     const ox = t.mesh.position.x;
-    const oy = t.mesh.position.y + 0.52;
+    const oy = t.mesh.position.y + (espresso ? 0.62 : 0.52);
     const oz = t.mesh.position.z;
     for (const e of enemies) {
       if (e.dead) continue;
@@ -3355,23 +3682,24 @@ function tickTurrets(dt) {
       if (d2 < bestD) { bestD = d2; best = e; }
     }
     if (!best) continue;
-    t.cool = 0.7;
+    t.cool = espresso ? 0.38 : 0.7;
     const len = Math.sqrt(bestD) || 1;
-    const mesh = new THREE.Mesh(cakeGeo, cakeMat);
-    mesh.rotation.x = Math.PI / 2;
+    const speed = espresso ? 26 : 18;
+    const mesh = espresso ? new THREE.Mesh(shotGeo, shotMat) : new THREE.Mesh(cakeGeo, cakeMat);
+    if (!espresso) mesh.rotation.x = Math.PI / 2;
     mesh.position.set(ox, oy, oz);
     scene.add(mesh);
     projectiles.push({
       mesh,
       vel: new THREE.Vector3(
-        (best.mesh.position.x - ox) / len * 18,
-        (best.mesh.position.y + best.height * 0.45 - oy) / len * 18,
-        (best.mesh.position.z - oz) / len * 18
+        (best.mesh.position.x - ox) / len * speed,
+        (best.mesh.position.y + best.height * 0.45 - oy) / len * speed,
+        (best.mesh.position.z - oz) / len * speed
       ),
-      life: 1.4,
-      dmg: 12,
-      radius: 0.22,
-      splash: 0,
+      life: espresso ? 1.6 : 1.4,
+      dmg: espresso ? 24 : 12,
+      radius: espresso ? 0.2 : 0.22,
+      splash: espresso ? 1.1 : 0,
       trailWait: 0,
     });
   }
@@ -3379,9 +3707,18 @@ function tickTurrets(dt) {
 
 function syncWaveBtn(dt) {
   if (useHint) {
-    const show = state.mode === "tower" && state.running && !state.paused;
+    const live = state.running && !state.paused;
+    const show = state.mode === "tower" && live;
     let text = "";
-    if (show && lookingAtMineShop()) {
+    if (live && lookingAtAmmoShop()) {
+      text = !gunsNeedAmmo()
+        ? "Guns already full"
+        : state.score < AMMO_COST
+          ? "Need " + AMMO_COST + " score · Ammo restock"
+          : state.mode === "tower"
+            ? "E / Click / T · Full ammo (" + AMMO_COST + ")"
+            : "E / Click · Full ammo (" + AMMO_COST + ")";
+    } else if (show && lookingAtMineShop()) {
       text = state.mines >= MINE_BAG
         ? "Mine bag full (" + MINE_BAG + ")"
         : state.score < MINE_COST
@@ -3394,8 +3731,34 @@ function syncWaveBtn(dt) {
         : state.score < cost
           ? "Need " + cost + " score · Toaster Turret"
           : "E / Click · Buy Toaster Turret (" + cost + ")";
+    } else if (show && lookingAtEspressoShop()) {
+      const cost = nextEspressoCost();
+      text = cost == null
+        ? "Espresso Cannons sold out (2/2)"
+        : state.score < cost
+          ? "Need " + cost + " score · Espresso Cannon"
+          : "E / Click · Buy Espresso Cannon (" + cost + ")";
+    } else if (show && lookingAtPunch()) {
+      const w = currentWeapon();
+      text = !w
+        ? "Pack-a-Punch"
+        : w.packed
+          ? w.name + " is already packed"
+          : state.score < PAP_COST
+            ? "Need " + PAP_COST + " score · Pack " + w.name
+            : "E / Click · Pack " + w.name + " (" + PAP_COST + ")";
+    } else if (show && state.espressoStock > 0 && lookingAtTablePad()) {
+      text = "E / Click · Place Espresso Cannon on table (" + state.espressoStock + ")";
+    } else if (show && state.espressoStock > 0) {
+      text = "Look at a table · E to plant Espresso Cannon (" + state.espressoStock + ")";
     } else if (show && state.waveHold) {
-      text = lookingAtWaveBtn() ? "E / Click · ORDER UP" : "ORDER UP on the kitchen wall starts the wave";
+      if (lookingAtWaveBtn()) {
+        text = state.pendingBoss ? "E / Click · ORDER UP · Boss Fight" : "E / Click · ORDER UP";
+      } else {
+        text = state.pendingBoss
+          ? "ORDER UP on the kitchen wall starts the Boss Fight"
+          : "ORDER UP on the kitchen wall starts the wave";
+      }
     } else if (show && state.mines > 0) {
       text = "G · plant landmine (" + state.mines + ")";
     }
@@ -3483,7 +3846,7 @@ function hitscan(spread, meshes) {
 }
 
 function shoot() {
-  if (tryTowerUse()) return;
+  if (tryUse()) return;
   const w = currentWeapon();
   const now = performance.now() / 1000;
   if (state.reloading > 0) return;
@@ -3581,6 +3944,7 @@ function clearWorldActors() {
   particles.length = 0;
   for (const t of turrets) scene.remove(t.mesh);
   turrets.length = 0;
+  for (const pad of tablePads) pad.filled = false;
   for (const pad of turretPads) pad.filled = false;
   for (const m of mines) scene.remove(m.mesh);
   mines.length = 0;
@@ -3603,6 +3967,7 @@ function resetGame() {
   state.didWave = false;
   state.waveHold = false;
   state.turretStock = 0;
+  state.espressoStock = 0;
   state.mines = 0;
   state.bossFight = false;
   state.pendingBoss = false;
@@ -3611,7 +3976,7 @@ function resetGame() {
   state.kick = 0;
   state.ads = 0;
   fillKit();
-  WEAPONS.forEach((w) => { w.mag = w.max; w.reserve = w.max * (w.name === "Espresso SMG" ? 3 : 4); });
+  fillAllGuns();
   clearWorldActors();
   applyLook();
   hudCache = "";
@@ -3849,8 +4214,18 @@ function tickActors(dt) {
 
   if (state.mode === "tower") {
     if (state.running && state.spawnLeft === 0 && enemies.length === 0 && !state.waveHold) {
-      state.waveHold = true;
-      announce(state.didWave ? "All clear — hit ORDER UP for the next wave" : "Hit ORDER UP on the wall when you're ready");
+      if (state.bossFight) {
+        state.bossFight = false;
+        state.waveHold = true;
+        announce("Boss down — hit ORDER UP for the next wave");
+      } else if (state.didWave && state.wave % 5 === 0) {
+        state.pendingBoss = true;
+        state.waveHold = true;
+        announce("All clear — hit ORDER UP for Boss Fight");
+      } else {
+        state.waveHold = true;
+        announce(state.didWave ? "All clear — hit ORDER UP for the next wave" : "Hit ORDER UP on the wall when you're ready");
+      }
     }
   } else {
     if (state.running && state.spawnLeft === 0 && enemies.length === 0 && state.waveClear <= 0) {
@@ -3919,7 +4294,9 @@ function poseWepHands() {
 function drawWeapon() {
   const held = currentWeapon();
   for (let i = 0; i < weaponModels.length; i++) {
-    weaponModels[i].visible = ARMORY[i] === held && state.running;
+    const on = !!(held && held.armoryIndex === i && state.running);
+    weaponModels[i].visible = on;
+    if (on) paintPacked(weaponModels[i], !!held.packed);
   }
   poseWepHands();
   wepHands.visible = state.running && !(held.scope && state.ads > 0.55);
@@ -3927,7 +4304,7 @@ function drawWeapon() {
 
 function syncHud() {
   const w = currentWeapon();
-  const ammo = state.reloading > 0 ? "reloading…" : w.mag + " / " + w.reserve + " " + w.ammoName;
+  const ammo = state.reloading > 0 ? "reloading…" : w.mag + " / " + w.reserve + " " + w.ammoName + (w.packed ? " · PACKED" : "");
   const boss = enemies.find((e) => e.boss && !e.dead);
   const bossHp = boss ? Math.max(0, Math.ceil(boss.hp)) : 0;
   const key = state.hp + "|" + state.baseHp + "|" + state.mode + "|" + state.score + "|" + state.kills + "|" + state.wave + "|" + w.name + "|" + ammo + "|" + state.mines + "|" + state.bossFight + "|" + bossHp;
@@ -4037,8 +4414,9 @@ document.addEventListener("keydown", (e) => {
   keys[e.code] = true;
   if (e.code === "Space") e.preventDefault();
   if (e.code === "KeyR") startReload();
-  if (e.code === "KeyE") tryTowerUse();
+  if (e.code === "KeyE") tryUse();
   if (e.code === "KeyG") plantMine();
+  if (e.code === "KeyT") buyAmmoRestock(false);
   if (state.running && e.code >= "Digit1" && e.code <= "Digit9") {
     const slot = e.code.charCodeAt(5) - 49;
     if (slot < WEAPONS.length) {
