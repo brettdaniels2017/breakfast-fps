@@ -557,6 +557,36 @@
     .mug .eye.l { left: 18px; top: 40px; }
     .mug .eye.r { left: 36px; top: 40px; }
 
+    .sauce { width: 46px; height: 88px; }
+    .sauce .body {
+      position: absolute;
+      left: 6px;
+      right: 6px;
+      bottom: 0;
+      height: 64px;
+      background: #b71c1c;
+      border-radius: 10px 10px 8px 8px;
+    }
+    .sauce .cap {
+      position: absolute;
+      left: 14px;
+      right: 14px;
+      top: 8px;
+      height: 18px;
+      background: #2e7d32;
+      border-radius: 6px 6px 2px 2px;
+    }
+    .sauce .label {
+      position: absolute;
+      left: 10px;
+      right: 10px;
+      top: 42px;
+      height: 18px;
+      background: #f2e2b0;
+    }
+    .sauce .eye.l { left: 10px; top: 48px; }
+    .sauce .eye.r { left: 24px; top: 48px; }
+
     .peek .food { position: absolute; bottom: 8px; }
     .peek .egg { left: 8px; transform: scale(1.15); }
     .peek .sausage { left: 92px; bottom: 18px; transform: rotate(-12deg) scale(1.05); }
@@ -658,7 +688,7 @@
 
   <section id="story">
     <div class="wrap">
-      <p>Hangry Eggs, Rogue Sausages, Cereal Haunts, Watermelon Brutes, Waffle Stacks, and Coffee Creeps. They don’t shoot. They chase, climb stairs, and try to eat you or the kitchen.</p>
+      <p>Hangry Eggs, Rogue Sausages, Cereal Haunts, Watermelon Brutes, Waffle Stacks, Coffee Creeps, and Hot Sauce Squirts. Most leftovers chase. Squirts spit on Lot Raid. Hold F for the tray you always bring.</p>
       <p>Take <b>three</b> of seven weapons. Clear waves.</p>
       <div class="peek" aria-hidden="true">
         <div class="food egg">
@@ -701,7 +731,7 @@
           </button>
           <div class="mode-body">
             <h3>Lot Raid</h3>
-            <p>Free-roam the diner block, kitchen deck, and Salsa Cantina. Stomach HP is yours. Next wave starts ten seconds after the last leftover dies.</p>
+            <p>Free-roam the diner block, kitchen deck, and Salsa Cantina. Stomach HP is yours. Next wave starts ten seconds after the last leftover dies. Hot Sauce Squirts shoot here. Hold F to raise your tray.</p>
           </div>
         </article>
         <article class="mode tower">
@@ -763,7 +793,7 @@
   <section id="leftovers">
     <div class="wrap">
       <h2>Hangry leftovers</h2>
-      <p class="sub">Melee only. They run around the map climbing stairs to hunt. Every fifth wave they get stronger- then there is a boss fight to test your might</p>
+      <p class="sub">Most leftovers melee and climb. Hot Sauce Squirts spit on Lot Raid only. Hold F for your tray. Every fifth wave they get stronger — then a boss fight.</p>
       <div class="roster">
         <article class="leftover">
           <div class="stage">
@@ -841,6 +871,16 @@
           </div>
           <h3>Coffee Creep</h3>
           <p>50 HP · closes in</p>
+        </article>
+        <article class="leftover">
+          <div class="stage">
+            <div class="food sauce">
+              <div class="body"></div><div class="cap"></div><div class="label"></div>
+              <i class="eye l"></i><i class="eye r"></i>
+            </div>
+          </div>
+          <h3>Hot Sauce Squirt</h3>
+          <p>55 HP · Lot Raid spit</p>
         </article>
       </div>
     </div>

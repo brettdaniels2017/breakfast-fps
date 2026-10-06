@@ -2,7 +2,7 @@
 
 **[Promo](https://brettdaniels2017.github.io/breakfast-fps/)** · **[Play](https://brettdaniels2017.github.io/breakfast-fps/play.html)**
 
-A breakfast-themed first-person shooter in one HTML page. Pack **three** weapons, pick a mode, and keep leftovers off the lot.
+A breakfast-themed first-person shooter in one HTML page. Pack **three** weapons, pick a mode and Light or Dark, and keep leftovers off the lot.
 
 ## Play
 
@@ -13,11 +13,11 @@ Click the game view if the browser asks for pointer lock. Pack exactly **3 of 7*
 
 ## What it is
 
-Agent Scramble is a wave shooter set in diner country. You fight Hangry Eggs, Rogue Sausages, Cereal Haunts, Watermelon Brutes, Waffle Stacks, and Coffee Creeps. They melee only, path around furniture, and climb stairs.
+Agent Scramble is a wave shooter set in diner country. You fight Hangry Eggs, Rogue Sausages, Cereal Haunts, Watermelon Brutes, Waffle Stacks, Coffee Creeps, and (Lot Raid only) Hot Sauce Squirts. Most leftovers melee. Squirts spit a sauce glob no harder than a Syrup Shotgun pellet. Hold **F** to raise a see-through orange tray (50 HP, drains while up and when it blocks, full again after each round).
 
 Two modes:
 
-- **Lot Raid** — hunt leftovers across the diner block, kitchen deck, and Salsa Cantina. Stomach HP is yours. Next wave starts 10 seconds after the last leftover dies. Full ammo restock is on the diner’s third-floor deck (**200** score, look and press **E**).
+- **Lot Raid** — hunt leftovers across the diner block, kitchen deck, and Salsa Cantina. Stomach HP is yours. Next wave starts 10 seconds after the last leftover dies. Full ammo restock is on the diner’s third-floor deck (**200** score, look and press **E**). Hot Sauce Squirts shoot here. Hold **F** for your tray.
 - **Tower Kitchen** — hold a diner hallway. The kitchen has **1000 HP**. Leftovers chew it when they reach the counter. Hit **ORDER UP** to start leftover waves and boss fights (every 5th leftover wave). In the Upgrades room: **Toaster Turrets** (500, then 1500), **Espresso Cannons** (2000, then 4000, plant on tables with **E**), **Landmines** (200, **G** to plant), **Ammo Restock** (200, **T** anytime), and **Pack-a-Punch** (6000 per gun, irreversible).
 
 ## Controls
@@ -32,6 +32,7 @@ Two modes:
 | Shift | Aim (Marksman 2× scope, Link Launcher 1.5× irons) |
 | R | Reload |
 | E | ORDER UP / buy from the shop / plant Espresso Cannon (Tower Kitchen) |
+| F | Hold the orange tray (50 HP, blocks shots and melee you face; refills after each round) |
 | G | Plant a landmine (Tower Kitchen) |
 | T | Full ammo restock for 200 score (Tower Kitchen, anytime) |
 | Esc | Pause (unlocks the mouse) |
