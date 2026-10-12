@@ -180,6 +180,9 @@
     @media (min-width: 640px) {
       .loadout { grid-template-columns: 1fr 1fr; }
     }
+    @media (max-width: 720px) {
+      .modes.play-modes { grid-template-columns: 1fr; }
+    }
     .wep-pick {
       pointer-events: auto;
       text-align: left;
@@ -201,6 +204,7 @@
     .wep-pick.locked { opacity: 0.4; cursor: not-allowed; }
     .wep-pick small { display: block; font-weight: 500; color: #e8c48a; margin-top: 3px; }
     .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0 4px; }
+    .modes.play-modes { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .mode-pick {
       background: #3a2418;
       color: #fff1c9;
@@ -315,9 +319,10 @@
       <div class="tag">Single-page breakfast FPS</div>
       <h1>Agent Scramble</h1>
       <p>Pack a Loadout, pick a mode, then scramble. Choose <b>exactly 3</b> of the 7 weapons.</p>
-      <div class="modes">
+      <div class="modes play-modes">
         <button type="button" class="mode-pick on" id="modeRaid">Lot Raid<small>Hunt leftovers across the diner block. Hot Sauce Squirts spit. Hold F for your tray.</small></button>
-        <button type="button" class="mode-pick" id="modeTower">Tower Kitchen<small>Hold the diner hallway. ORDER UP starts waves and boss fights. Pack-a-Punch is 6000 a gun.</small></button>
+        <button type="button" class="mode-pick" id="modeTower">Tower Kitchen<small>Hold the diner hallway. ORDER UP starts waves and boss fights. Pepper Mill is 2500. Pack-a-Punch is 6000 a gun.</small></button>
+        <button type="button" class="mode-pick" id="modeSandbox">Sandbox<small>Tower Kitchen with unlimited score. All 7 guns. Buy anything. ORDER UP still starts waves.</small></button>
       </div>
       <div class="modes looks">
         <button type="button" class="mode-pick" id="lookLight">Light<small>Daytime lot. Bright sky, no night lamps.</small></button>
@@ -330,7 +335,7 @@
         <div><b>Space</b> jump</div>
         <div><b>Mouse</b> look around</div>
         <div><b>Click</b> fire</div>
-        <div><b>1–3 / scroll</b> swap Loadout</div>
+        <div><b>1–7 / scroll</b> swap Loadout</div>
         <div><b>Shift</b> aim · <b>R</b> reload · <b>E</b> ORDER UP / shop · <b>F</b> hold tray (50 HP) · <b>G</b> plant mine · <b>T</b> ammo (200) · <b>Esc</b> pause</div>
       </div>
       <button id="startBtn" disabled>Start Agent Scramble</button>
@@ -469,12 +474,26 @@ const state = {
   waveHold: false,
   turretStock: 0,
   espressoStock: 0,
+  pepperStock: 0,
   mines: 0,
   bossFight: false,
   pendingBoss: false,
   shield: 0,
   shieldHp: 50,
 };
+
+function isSandbox() {
+  return state.mode === "sandbox";
+}
+function onTower() {
+  return state.mode === "tower" || state.mode === "sandbox";
+}
+function canAfford(cost) {
+  return isSandbox() || state.score >= cost;
+}
+function spendScore(cost) {
+  if (!isSandbox()) state.score -= cost;
+}
 
 const HALL_HALF = 5;
 const HALL_LEN = 38;
@@ -483,6 +502,12 @@ const TURRET_COSTS = [500, 1500];
 const TURRET_RANGE = 13.5;
 const ESPRESSO_COSTS = [2000, 4000];
 const ESPRESSO_RANGE = 18;
+const PEPPER_COSTS = [2500, 3500];
+const PEPPER_RANGE = 12;
+const CRISPY_COST = 8000;
+const CRISPY_RANGE = 26;
+const CRISPY_COOL = 2.55;
+const CRISPY_MOUNT = { x: 0, y: 3.4, z: -3.2 };
 const AMMO_COST = 200;
 const MINE_COST = 200;
 const SHIELD_MAX = 50;
@@ -497,6 +522,16 @@ const PAP_NAMES = {
   "Maple Marksman": "Dark Maple",
   "Link Launcher": "Hell Link",
 };
+const PAP_TINTS = {
+  "Toast Launcher": "#c44aff",
+  "Bacon Lash": "#00f0ff",
+  "Syrup Shotgun": "#b8ff1a",
+  "Espresso SMG": "#ff2ea6",
+  "Pancake Frisbee": "#3df0ff",
+  "Maple Marksman": "#7cff3a",
+  "Link Launcher": "#4a7bff",
+};
+const PAP_PALETTE = [0xc44aff, 0x00f0ff, 0xb8ff1a, 0xff2ea6, 0x3df0ff, 0x7cff3a, 0x4a7bff, 0xff4ad6, 0x9d4aff, 0xe0ff4a];
 const MINE_DMG = 130;
 const MINE_SPLASH = 2.5;
 const MINE_BAG = 8;
@@ -511,6 +546,8 @@ let mineStand = null;
 let espressoStand = null;
 let ammoStand = null;
 let punchStand = null;
+let crispyStand = null;
+let pepperStand = null;
 const worldLayer = new THREE.Group();
 const scene = new THREE.Scene();
 scene.add(worldLayer);
@@ -1247,11 +1284,11 @@ function walkClear(ax, az, bx, bz, y, r) {
 let pathBudget = 0;
 
 function steerEnemy(e, dt, ppos) {
-  const goal = state.mode === "tower" ? { x: 0, y: 0, z: 2.2 } : ppos;
+  const goal = onTower() ? { x: 0, y: 0, z: 2.2 } : ppos;
   const flat = Math.hypot(goal.x - e.mesh.position.x, goal.z - e.mesh.position.z);
   const climb = goal.y - e.floorY;
   const sameLevel = Math.abs(climb) < 0.5;
-  const canSee = sameLevel && flat < (state.mode === "tower" ? 50 : 12) && walkClear(
+  const canSee = sameLevel && flat < (onTower() ? 50 : 12) && walkClear(
     e.mesh.position.x, e.mesh.position.z, goal.x, goal.z, e.floorY, e.radius * 0.45
   );
 
@@ -1716,8 +1753,8 @@ function addUmbrella(x, z) {
 }
 
 function inPlayLot(x, z) {
-  if (state.mode === "tower") {
-    return Math.abs(x) < HALL_HALF - 0.35 && z < 15.1 && z > -HALL_LEN + 0.6;
+  if (onTower()) {
+    return Math.abs(x) < HALL_HALF - 0.35 && z < 21.3 && z > -HALL_LEN + 0.6;
   }
   const p = 2.6;
   if (x >= -28 + p && x <= 28 - p && z >= -28 + p && z <= 28 - p) return true;
@@ -2438,6 +2475,51 @@ function makeToasterMesh() {
   return g;
 }
 
+function makeCrispyMesh(hanging) {
+  const g = new THREE.Group();
+  const steel = new THREE.MeshStandardMaterial({ color: 0x1c242c, roughness: 0.28, metalness: 0.82 });
+  const rim = new THREE.MeshStandardMaterial({ color: 0x8a9aa8, roughness: 0.22, metalness: 0.72 });
+  const crust = new THREE.MeshStandardMaterial({ color: 0xc45c18, roughness: 0.42, emissive: 0xff6a14, emissiveIntensity: 0.55 });
+  const gold = new THREE.MeshStandardMaterial({ color: 0xf2b33a, roughness: 0.35, emissive: 0xff8a20, emissiveIntensity: 0.35 });
+  const mount = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.34, 0.08, 16), steel);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.03, 8, 18), rim);
+  ring.rotation.x = Math.PI / 2;
+  ring.position.y = -0.02;
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 0.28, 10), steel);
+  stem.position.y = -0.18;
+  const aim = new THREE.Group();
+  aim.position.y = hanging ? -0.42 : 0.42;
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.22, 14, 12), steel);
+  const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, 0.12, 12), rim);
+  collar.rotation.x = Math.PI / 2;
+  collar.position.z = -0.16;
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.11, 0.52, 12), steel);
+  barrel.rotation.x = Math.PI / 2;
+  barrel.position.z = -0.42;
+  const muzzle = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.02, 8, 14), gold);
+  muzzle.position.z = -0.68;
+  const core = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), crust);
+  core.position.z = -0.08;
+  const finL = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.16, 0.22), gold);
+  finL.position.set(-0.2, 0, -0.12);
+  const finR = finL.clone();
+  finR.position.x = 0.2;
+  aim.add(body, collar, barrel, muzzle, core, finL, finR);
+  if (hanging) {
+    mount.position.y = 0;
+    g.add(mount, ring, stem, aim);
+  } else {
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.26, 0.1, 12), steel);
+    base.position.y = 0.05;
+    stem.position.y = 0.22;
+    mount.position.y = 0.34;
+    ring.position.y = 0.34;
+    g.add(base, stem, mount, ring, aim);
+  }
+  g.userData.aim = aim;
+  return g;
+}
+
 function makeEspressoMesh() {
   const g = new THREE.Group();
   const chrome = new THREE.MeshStandardMaterial({ color: 0xcfd8de, roughness: 0.26, metalness: 0.78 });
@@ -2464,6 +2546,33 @@ function makeEspressoMesh() {
   return g;
 }
 
+function makePepperMesh() {
+  const g = new THREE.Group();
+  const chrome = new THREE.MeshStandardMaterial({ color: 0xcfd8de, roughness: 0.26, metalness: 0.78 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x1c1410, roughness: 0.48, metalness: 0.22 });
+  const wood = new THREE.MeshStandardMaterial({ color: 0x6b3a1f, roughness: 0.62 });
+  const spec = new THREE.MeshStandardMaterial({ color: 0x3b2418, roughness: 0.55, emissive: 0x2a140c, emissiveIntensity: 0.2 });
+  const crank = new THREE.Group();
+  crank.position.y = 0.62;
+  const bowl = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 10), chrome);
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 0.12, 10), dark);
+  cap.position.y = 0.16;
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.04, 0.04), wood);
+  arm.position.set(0.12, 0.14, 0);
+  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8), dark);
+  knob.position.set(0.26, 0.14, 0);
+  crank.add(bowl, cap, arm, knob);
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.16, 0.42, 12), wood);
+  body.position.y = 0.28;
+  const mill = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.11, 0.1, 10), chrome);
+  mill.position.y = 0.05;
+  const grit = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 6), spec);
+  grit.position.set(0.02, 0.02, 0.04);
+  g.add(body, mill, grit, crank);
+  g.userData.crank = crank;
+  return g;
+}
+
 function makeAmmoCrateMesh() {
   const g = new THREE.Group();
   const wood = new THREE.MeshStandardMaterial({ color: 0x6b3a1f, roughness: 0.7 });
@@ -2481,15 +2590,19 @@ function makeAmmoCrateMesh() {
 
 function makePunchMesh() {
   const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.15, 0.7), new THREE.MeshStandardMaterial({ color: 0x1a0a24, roughness: 0.45, metalness: 0.35, emissive: 0x4a1060, emissiveIntensity: 0.28 }));
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.15, 0.7), new THREE.MeshStandardMaterial({ color: 0x141820, roughness: 0.42, metalness: 0.4, emissive: 0x1a3040, emissiveIntensity: 0.22 }));
   body.position.y = 0.58;
-  const rim = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.08, 0.76), new THREE.MeshStandardMaterial({ color: 0xf2c14a, roughness: 0.3, metalness: 0.7, emissive: 0xff8a20, emissiveIntensity: 0.35 }));
+  const rim = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.08, 0.76), new THREE.MeshStandardMaterial({ color: 0xc44aff, roughness: 0.22, metalness: 0.7, emissive: 0xc44aff, emissiveIntensity: 0.7 }));
   rim.position.y = 1.18;
-  const slot = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.12, 0.18), new THREE.MeshStandardMaterial({ color: 0xff4ad6, roughness: 0.25, emissive: 0xff4ad6, emissiveIntensity: 0.7 }));
+  const slot = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.12, 0.18), new THREE.MeshStandardMaterial({ color: 0x00f0ff, roughness: 0.2, emissive: 0x00f0ff, emissiveIntensity: 0.85 }));
   slot.position.set(0, 0.72, -0.28);
-  const coil = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.03, 8, 16), new THREE.MeshStandardMaterial({ color: 0x9b8cff, roughness: 0.25, metalness: 0.6, emissive: 0x7a5cff, emissiveIntensity: 0.5 }));
-  coil.position.set(0, 0.95, -0.28);
-  g.add(body, rim, slot, coil);
+  const coilA = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.03, 8, 16), new THREE.MeshStandardMaterial({ color: 0xff2ea6, roughness: 0.2, metalness: 0.55, emissive: 0xff2ea6, emissiveIntensity: 0.75 }));
+  coilA.position.set(-0.22, 0.95, -0.18);
+  const coilB = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.03, 8, 16), new THREE.MeshStandardMaterial({ color: 0x00f0ff, roughness: 0.2, metalness: 0.55, emissive: 0x00f0ff, emissiveIntensity: 0.75 }));
+  coilB.position.set(0.22, 0.95, -0.18);
+  const coilC = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.025, 8, 14), new THREE.MeshStandardMaterial({ color: 0xb8ff1a, roughness: 0.2, metalness: 0.5, emissive: 0xb8ff1a, emissiveIntensity: 0.7 }));
+  coilC.position.set(0, 0.42, -0.3);
+  g.add(body, rim, slot, coilA, coilB, coilC);
   return g;
 }
 
@@ -2691,12 +2804,12 @@ function buildTower() {
   visBox(0.1, 0.14, HALL_LEN, woodMat, HALL_HALF - 0.02, 3.12, hallZ);
   visBox(0.1, 0.14, HALL_LEN, woodMat, -(HALL_HALF - 0.02), 3.12, hallZ);
   place(HALL_HALF * 2 + 0.9, 3.22, 0.45, cream, 0, 0, -HALL_LEN);
-  place(0.45, 3.22, 13.2, tileMat, HALL_HALF + 0.22, 0, 8.8);
-  place(0.45, 3.22, 13.2, tileMat, -(HALL_HALF + 0.22), 0, 8.8);
-  place(HALL_HALF * 2 + 0.9, 3.22, 0.45, tileMat, 0, 0, 15.4);
+  place(0.45, 3.22, 19.4, tileMat, HALL_HALF + 0.22, 0, 11.9);
+  place(0.45, 3.22, 19.4, tileMat, -(HALL_HALF + 0.22), 0, 11.9);
+  place(HALL_HALF * 2 + 0.9, 3.22, 0.45, tileMat, 0, 0, 21.6);
 
-  const roof = new THREE.Mesh(new THREE.BoxGeometry(HALL_HALF * 2 + 1.8, 0.32, 20.4), cream);
-  roof.position.set(0, 3.38, 5.2);
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(HALL_HALF * 2 + 1.8, 0.32, 26.8), cream);
+  roof.position.set(0, 3.38, 8.4);
   scene.add(roof);
   const cap = new THREE.Mesh(new THREE.BoxGeometry(HALL_HALF * 2 + 2.1, 0.42, 1.15), red);
   cap.position.set(0, 3.72, 3.4);
@@ -2783,20 +2896,23 @@ function buildTower() {
   clock.position.set(3.4, 2.55, 5.32);
   scene.add(clock);
 
-  const upFloor = new THREE.Mesh(new THREE.BoxGeometry(HALL_HALF * 2 - 0.2, 0.1, 9.8), floorMat);
-  upFloor.position.set(0, 0.06, 10.5);
+  const upFloor = new THREE.Mesh(new THREE.BoxGeometry(HALL_HALF * 2 - 0.2, 0.1, 16.2), floorMat);
+  upFloor.position.set(0, 0.06, 13.5);
   scene.add(upFloor);
-  visBox(0.08, 1.12, 10.2, vinyl, HALL_HALF - 0.02, 0.56, 10.5);
-  visBox(0.08, 1.12, 10.2, vinyl, -(HALL_HALF - 0.02), 0.56, 10.5);
-  visBox(0.06, 0.08, 10.2, chrome, HALL_HALF - 0.01, 1.14, 10.5);
-  visBox(0.06, 0.08, 10.2, chrome, -(HALL_HALF - 0.01), 1.14, 10.5);
-  visBox(HALL_HALF * 2 - 0.6, 0.06, 0.16, chrome, 0, 3.36, 10.5);
+  visBox(0.08, 1.12, 16.4, vinyl, HALL_HALF - 0.02, 0.56, 13.5);
+  visBox(0.08, 1.12, 16.4, vinyl, -(HALL_HALF - 0.02), 0.56, 13.5);
+  visBox(0.06, 0.08, 16.4, chrome, HALL_HALF - 0.01, 1.14, 13.5);
+  visBox(0.06, 0.08, 16.4, chrome, -(HALL_HALF - 0.01), 1.14, 13.5);
+  visBox(HALL_HALF * 2 - 0.6, 0.06, 0.16, chrome, 0, 3.36, 13.5);
   const upLamp = new THREE.PointLight(0xffd9a0, 14, 11);
   upLamp.position.set(0, 3.05, 8.4);
   scene.add(upLamp);
   const upLamp2 = new THREE.PointLight(0xffd9a0, 14, 11);
-  upLamp2.position.set(0, 3.05, 13.2);
+  upLamp2.position.set(0, 3.05, 13.6);
   scene.add(upLamp2);
+  const upLamp3 = new THREE.PointLight(0xffd9a0, 14, 11);
+  upLamp3.position.set(0, 3.05, 18.6);
+  scene.add(upLamp3);
   const upShade = new THREE.Mesh(
     new THREE.ConeGeometry(0.34, 0.28, 12, 1, true),
     new THREE.MeshStandardMaterial({ color: 0xc43c2c, side: THREE.DoubleSide, roughness: 0.45, emissive: 0x4a120c, emissiveIntensity: 0.2 })
@@ -2804,15 +2920,20 @@ function buildTower() {
   upShade.position.set(0, 3.18, 8.4);
   scene.add(upShade);
   const upShade2 = upShade.clone();
-  upShade2.position.z = 13.2;
+  upShade2.position.z = 13.6;
   scene.add(upShade2);
+  const upShade3 = upShade.clone();
+  upShade3.position.z = 18.6;
+  scene.add(upShade3);
   visBox(HALL_HALF * 2 - 0.8, 0.1, 0.16, chrome, 0, 3.12, 5.35);
   visBox(0.12, 3.1, 0.16, chrome, -4.55, 1.55, 5.35);
   visBox(0.12, 3.1, 0.16, chrome, 4.55, 1.55, 5.35);
   place(2.2, 0.9, 1.15, woodMat, -3.15, 0, 9.55);
   place(2.2, 0.9, 1.15, woodMat, 3.15, 0, 9.55);
-  place(2.2, 0.9, 1.15, woodMat, -3.15, 0, 13.85);
-  place(2.2, 0.9, 1.15, woodMat, 3.15, 0, 13.85);
+  place(2.2, 0.9, 1.15, woodMat, -3.15, 0, 13.15);
+  place(2.2, 0.9, 1.15, woodMat, 3.15, 0, 13.15);
+  place(2.2, 0.9, 1.15, woodMat, -3.15, 0, 16.75);
+  place(2.2, 0.9, 1.15, woodMat, 3.15, 0, 16.75);
   const upTex = tex((g, w, h) => {
     g.fillStyle = "#2a120e";
     g.fillRect(0, 0, w, h);
@@ -2822,7 +2943,7 @@ function buildTower() {
     g.fillText("UPGRADES", w / 2, h * 0.68);
   }, 512, 128);
   const upMat = new THREE.MeshStandardMaterial({ map: upTex, emissive: 0xff8a20, emissiveIntensity: 0.45 });
-  twoFaceSign(3.4, 0.7, upMat, 0, 2.55, 15.12, 0);
+  twoFaceSign(3.4, 0.7, upMat, 0, 2.55, 21.32, 0);
   twoFaceSign(2.2, 0.28, upMat, 0, 2.95, 5.38, 0);
 
   function shopSign(title, price, x, z) {
@@ -2853,23 +2974,37 @@ function buildTower() {
   shopSign("LANDMINE", MINE_COST + " SCORE", -3.15, 9.35);
 
   const shopEspresso = makeEspressoMesh();
-  shopEspresso.position.set(3.15, 0.92, 13.65);
+  shopEspresso.position.set(3.15, 0.92, 12.95);
   scene.add(shopEspresso);
   espressoStand = shopEspresso;
-  shopSign("ESPRESSO CANNON", "2000 / 4000", 3.15, 13.65);
+  shopSign("ESPRESSO CANNON", "2000 / 4000", 3.15, 12.95);
 
   const shopAmmo = makeAmmoCrateMesh();
-  shopAmmo.position.set(-3.15, 0.92, 13.65);
+  shopAmmo.position.set(-3.15, 0.92, 12.95);
   scene.add(shopAmmo);
   ammoStand = shopAmmo;
-  shopSign("AMMO RESTOCK", "200  ·  T ANYTIME", -3.15, 13.65);
+  shopSign("AMMO RESTOCK", "200  ·  T ANYTIME", -3.15, 12.95);
 
-  place(1.9, 0.9, 1.2, woodMat, 0, 0, 11.55);
+  const shopPepper = makePepperMesh();
+  shopPepper.position.set(3.15, 0.92, 16.55);
+  scene.add(shopPepper);
+  pepperStand = shopPepper;
+  shopSign("PEPPER MILL", "2500 / 3500", 3.15, 16.55);
+
+  const shopCrispy = makeCrispyMesh(false);
+  shopCrispy.position.set(-3.15, 0.92, 16.55);
+  shopCrispy.rotation.y = Math.PI;
+  shopCrispy.scale.setScalar(0.82);
+  scene.add(shopCrispy);
+  crispyStand = shopCrispy;
+  shopSign("CRISPY CANNON", "8000  ·  CEILING", -3.15, 16.55);
+
+  place(1.9, 0.9, 1.2, woodMat, 0, 0, 19.7);
   const punch = makePunchMesh();
-  punch.position.set(0, 0.92, 11.5);
+  punch.position.set(0, 0.92, 19.65);
   scene.add(punch);
   punchStand = punch;
-  shopSign("PACK-A-PUNCH", PAP_COST + " / GUN", 0, 11.55);
+  shopSign("PACK-A-PUNCH", PAP_COST + " / GUN", 0, 19.7);
 
   const neonTex = tex((g, w, h) => {
     g.fillStyle = "#2a120e";
@@ -3151,7 +3286,8 @@ function applyZoom() {
 
 function fillKit() {
   WEAPONS.length = 0;
-  [...picked].sort((a, b) => a - b).forEach((i) => {
+  const idxs = isSandbox() ? ARMORY.map((_, i) => i) : [...picked].sort((a, b) => a - b);
+  idxs.forEach((i) => {
     WEAPONS.push(Object.assign({ armoryIndex: i, packed: false }, ARMORY[i]));
   });
   if (state.weapon >= WEAPONS.length) state.weapon = 0;
@@ -3165,14 +3301,20 @@ function renderLoadout() {
     b.className = "wep-pick" + (picked.has(i) ? " on" : "");
     b.innerHTML = w.name + "<small>" + w.blurb + " · " + w.max + " " + w.ammoName + "</small>";
     b.addEventListener("click", () => {
+      if (isSandbox()) return;
       if (picked.has(i)) picked.delete(i);
       else if (picked.size < KIT) picked.add(i);
       renderLoadout();
     });
-    if (picked.size >= KIT && !picked.has(i)) b.classList.add("locked");
+    if (isSandbox() || (picked.size >= KIT && !picked.has(i))) b.classList.add("locked");
     loadoutBox.appendChild(b);
   });
   fillKit();
+  if (isSandbox()) {
+    loadoutHint.textContent = "Sandbox packs all 7 guns — unlimited score. Start whenever.";
+    startBtn.disabled = false;
+    return;
+  }
   const left = KIT - picked.size;
   loadoutHint.textContent = left === KIT
     ? "Pick 3 weapons"
@@ -3209,8 +3351,10 @@ function rebuildWorld() {
   espressoStand = null;
   ammoStand = null;
   punchStand = null;
+  crispyStand = null;
+  pepperStand = null;
   withWorld(() => {
-    if (state.mode === "tower") buildTower();
+    if (onTower()) buildTower();
     else buildDiner();
   });
   buildNav();
@@ -3222,10 +3366,15 @@ function rebuildWorld() {
 
 function setMode(mode) {
   state.mode = mode;
+  if (mode === "sandbox") ARMORY.forEach((_, i) => picked.add(i));
+  else if (picked.size > KIT) picked.clear();
   document.getElementById("modeRaid").classList.toggle("on", mode === "raid");
   document.getElementById("modeTower").classList.toggle("on", mode === "tower");
-  basePanel.style.display = mode === "tower" ? "block" : "none";
-  minePanel.style.display = mode === "tower" ? "block" : "none";
+  const sandBtn = document.getElementById("modeSandbox");
+  if (sandBtn) sandBtn.classList.toggle("on", mode === "sandbox");
+  basePanel.style.display = onTower() ? "block" : "none";
+  minePanel.style.display = onTower() ? "block" : "none";
+  renderLoadout();
 }
 
 function setLook(look) {
@@ -3256,6 +3405,10 @@ const cakeGeo = new THREE.CylinderGeometry(0.28, 0.28, 0.08, 12);
 const cakeMat = new THREE.MeshLambertMaterial({ color: 0xf2b33a });
 const shotGeo = new THREE.SphereGeometry(0.09, 8, 8);
 const shotMat = new THREE.MeshLambertMaterial({ color: 0x4a2410 });
+const crispyGeo = new THREE.SphereGeometry(0.16, 10, 8);
+const crispyMat = new THREE.MeshLambertMaterial({ color: 0xe07020 });
+const pepperGeo = new THREE.SphereGeometry(0.07, 6, 6);
+const pepperMat = new THREE.MeshLambertMaterial({ color: 0x2a1810 });
 const sauceGeo = new THREE.SphereGeometry(0.11, 8, 8);
 const sauceMat = new THREE.MeshLambertMaterial({ color: 0xb71c1c });
 const linkGeo = new THREE.CapsuleGeometry(0.1, 0.18, 4, 8);
@@ -3368,7 +3521,7 @@ function spawnOpen(x, z, y) {
 
 function markReachable() {
   const seen = new Set();
-  const start = nearestNav(0, state.mode === "tower" ? 2.2 : 8, 0);
+  const start = nearestNav(0, onTower() ? 2.2 : 8, 0);
   if (!start) return seen;
   const q = [start];
   seen.add(start.k);
@@ -3403,7 +3556,7 @@ function collectSpawnPoints() {
   for (const n of navNodes) {
     if (n.y > 3.4) continue;
     const r2 = n.x * n.x + n.z * n.z;
-    if (state.mode === "tower") {
+    if (onTower()) {
       if (n.z > -28 || n.z < -HALL_LEN + 2.2) continue;
       if (Math.abs(n.x) > HALL_HALF - 2.15) continue;
     } else if (r2 < 16) continue;
@@ -3412,7 +3565,7 @@ function collectSpawnPoints() {
     spawnPoints.push(new THREE.Vector3(n.x, n.y, n.z));
   }
   if (!spawnPoints.length) {
-    const fallback = state.mode === "tower"
+    const fallback = onTower()
       ? [[-2.2, 0, -33], [0, 0, -34], [2.2, 0, -33], [-1.4, 0, -31], [1.4, 0, -31], [0, 0, -36]]
       : [[0, 0, 16], [8, 0, 16], [-8, 0, 16], [12, 0, 8], [-12, 0, 8], [0, 0, 20]];
     for (const [x, y, z] of fallback) {
@@ -3458,10 +3611,20 @@ function pickSpawnSpot(minDist = 9) {
   return spot || pool[0] || null;
 }
 
+function waveScoreMul() {
+  const five = Math.floor(state.wave / 5);
+  const slight = Math.max(0, state.wave - 1 - five);
+  return Math.pow(1.05, slight) * Math.pow(1.2, five);
+}
+
+function leftoverScore(base) {
+  return Math.round(base * waveScoreMul());
+}
+
 function spawnEnemy() {
   const spot = pickSpawnSpot(9);
   if (!spot) return false;
-  const pool = state.mode === "raid" ? ENEMY_KINDS : ENEMY_KINDS.filter((k) => !k.ranged);
+  const pool = state.mode === "tower" ? ENEMY_KINDS.filter((k) => !k.ranged) : ENEMY_KINDS;
   const kind = pool[(Math.random() * pool.length) | 0];
   const hp = Math.round(kind.hp * Math.pow(1.2, Math.floor(state.wave / 5)));
   const mesh = makeEnemyMesh(kind);
@@ -3469,6 +3632,7 @@ function spawnEnemy() {
   scene.add(mesh);
   const enemy = {
     ...kind,
+    score: leftoverScore(kind.score),
     hp,
     maxHp: hp,
     hurt: 0,
@@ -3503,7 +3667,7 @@ function spawnBoss() {
     speed: 1.48,
     dmg: 22,
     baseDmg: 26,
-    score: 700 * n,
+    score: leftoverScore(700 * n),
     radius: 0.95,
     height: 2.2,
   };
@@ -3542,7 +3706,7 @@ function spawnBoss() {
 
 function waveCount() {
   const n = 8 * Math.pow(1.5, (state.wave - 1) % 5);
-  return Math.max(1, Math.round(n * (state.mode === "tower" ? 0.5 : 1)));
+  return Math.max(1, Math.round(n * (onTower() ? 0.5 : 1)));
 }
 
 function lookingAtPos(x, y, z, maxDist, minDot) {
@@ -3556,25 +3720,25 @@ function lookingAtPos(x, y, z, maxDist, minDot) {
 }
 
 function lookingAtWaveBtn() {
-  if (!waveBtn || state.mode !== "tower") return false;
+  if (!waveBtn || !onTower()) return false;
   waveBtn.getWorldPosition(tmp2);
   return lookingAtPos(tmp2.x, tmp2.y, tmp2.z, 6.2, 0.72);
 }
 
 function lookingAtShop() {
-  if (!shopStand || state.mode !== "tower") return false;
+  if (!shopStand || !onTower()) return false;
   shopStand.getWorldPosition(tmp2);
   return lookingAtPos(tmp2.x, tmp2.y + 0.2, tmp2.z, 4.2, 0.62);
 }
 
 function lookingAtMineShop() {
-  if (!mineStand || state.mode !== "tower") return false;
+  if (!mineStand || !onTower()) return false;
   mineStand.getWorldPosition(tmp2);
   return lookingAtPos(tmp2.x, tmp2.y + 0.15, tmp2.z, 4.2, 0.62);
 }
 
 function lookingAtEspressoShop() {
-  if (!espressoStand || state.mode !== "tower") return false;
+  if (!espressoStand || !onTower()) return false;
   espressoStand.getWorldPosition(tmp2);
   return lookingAtPos(tmp2.x, tmp2.y + 0.25, tmp2.z, 4.2, 0.62);
 }
@@ -3586,20 +3750,37 @@ function lookingAtAmmoShop() {
 }
 
 function lookingAtPunch() {
-  if (!punchStand || state.mode !== "tower") return false;
+  if (!punchStand || !onTower()) return false;
   punchStand.getWorldPosition(tmp2);
   return lookingAtPos(tmp2.x, tmp2.y + 0.4, tmp2.z, 4.4, 0.58);
+}
+
+function lookingAtCrispyShop() {
+  if (!crispyStand || !onTower()) return false;
+  crispyStand.getWorldPosition(tmp2);
+  return lookingAtPos(tmp2.x, tmp2.y + 0.35, tmp2.z, 4.4, 0.58);
+}
+
+function lookingAtPepperShop() {
+  if (!pepperStand || !onTower()) return false;
+  pepperStand.getWorldPosition(tmp2);
+  return lookingAtPos(tmp2.x, tmp2.y + 0.25, tmp2.z, 4.2, 0.62);
 }
 
 function papColor(hex) {
   const r = (hex >> 16) & 255;
   const g = (hex >> 8) & 255;
   const b = hex & 255;
-  if (r > 140 && g > 90 && b < 120) return 0xffe066;
-  if (r > 140 && r >= g && r >= b) return 0xff4ad6;
-  if (g > r && g > b) return 0x6bff9a;
-  if (Math.abs(r - g) < 35 && Math.abs(g - b) < 35) return 0xc9b8ff;
-  return 0x4a148c;
+  const tint = PAP_PALETTE[(r * 3 + g * 7 + b * 13) % PAP_PALETTE.length];
+  const tr = (tint >> 16) & 255;
+  const tg = (tint >> 8) & 255;
+  const tb = tint & 255;
+  const lum = (r * 0.3 + g * 0.5 + b * 0.2) / 255;
+  const lift = 0.12 + lum * 0.18;
+  const nr = Math.max(0, Math.min(255, Math.round(tr * (1 - lift) + 255 * lift)));
+  const ng = Math.max(0, Math.min(255, Math.round(tg * (1 - lift) + 255 * lift)));
+  const nb = Math.max(0, Math.min(255, Math.round(tb * (1 - lift) + 255 * lift)));
+  return (nr << 16) | (ng << 8) | nb;
 }
 
 function paintPacked(model, packed) {
@@ -3607,6 +3788,7 @@ function paintPacked(model, packed) {
   model.traverse((o) => {
     if (!o.isMesh || !o.material || !o.material.color) return;
     if (o.userData.baseColor == null) o.userData.baseColor = o.material.color.getHex();
+    if (o.userData.baseRough == null && o.material.roughness != null) o.userData.baseRough = o.material.roughness;
     if (!packed) {
       o.material.color.setHex(o.userData.baseColor);
       if (o.material.emissive) {
@@ -3614,32 +3796,34 @@ function paintPacked(model, packed) {
         o.material.emissiveIntensity = 0.12;
       }
       if (o.userData.baseMetal != null) o.material.metalness = o.userData.baseMetal;
+      if (o.userData.baseRough != null) o.material.roughness = o.userData.baseRough;
       return;
     }
     const next = papColor(o.userData.baseColor);
     o.material.color.setHex(next);
     if (o.material.emissive) {
       o.material.emissive.setHex(next);
-      o.material.emissiveIntensity = 0.42;
+      o.material.emissiveIntensity = 0.82;
     }
-    if (o.material.metalness != null) o.material.metalness = Math.max(o.material.metalness, 0.55);
+    if (o.material.metalness != null) o.material.metalness = Math.max(o.material.metalness, 0.35);
+    if (o.material.roughness != null) o.material.roughness = Math.min(o.material.roughness, 0.28);
   });
 }
 
 function packWeapon(w) {
   if (!w || w.packed) return false;
   w.packed = true;
+  w.color = PAP_TINTS[w.name] || "#4ad6ff";
   w.name = PAP_NAMES[w.name] || ("Packed " + w.name);
   w.dmg = Math.round(w.dmg * 1.85);
   if (w.rpm <= 160) w.rpm = Math.round(w.rpm * 1.5);
   if (w.splash) w.splash = Math.round(w.splash * 125) / 100;
-  w.color = "#ff4ad6";
   paintPacked(weaponModels[w.armoryIndex], true);
   return true;
 }
 
 function buyPunch() {
-  if (state.mode !== "tower" || !state.running || state.paused) return false;
+  if (!onTower() || !state.running || state.paused) return false;
   if (!lookingAtPunch()) return false;
   const w = currentWeapon();
   if (!w) return true;
@@ -3647,11 +3831,11 @@ function buyPunch() {
     announce("Already packed — " + w.name);
     return true;
   }
-  if (state.score < PAP_COST) {
+  if (!canAfford(PAP_COST)) {
     announce("Need " + PAP_COST + " score");
     return true;
   }
-  state.score -= PAP_COST;
+  spendScore(PAP_COST);
   packWeapon(w);
   hudCache = "";
   syncHud();
@@ -3660,7 +3844,7 @@ function buyPunch() {
 }
 
 function lookingAtTablePad() {
-  if (state.mode !== "tower") return null;
+  if (!onTower()) return null;
   camera.getWorldPosition(tmp);
   camera.getWorldDirection(lookDir);
   let best = null;
@@ -3692,9 +3876,17 @@ function nextEspressoCost() {
   return ESPRESSO_COSTS[espressoOwned()];
 }
 
+function pepperOwned() {
+  return turrets.filter((t) => t.kind === "pepper").length + state.pepperStock;
+}
+
+function nextPepperCost() {
+  return PEPPER_COSTS[pepperOwned()];
+}
+
 function deployTurret(pad, kind) {
   pad.filled = true;
-  const mesh = kind === "espresso" ? makeEspressoMesh() : makeToasterMesh();
+  const mesh = kind === "espresso" ? makeEspressoMesh() : kind === "pepper" ? makePepperMesh() : makeToasterMesh();
   mesh.position.set(pad.x, pad.y, pad.z);
   mesh.rotation.y = pad.side > 0 ? Math.PI / 2 : -Math.PI / 2;
   scene.add(mesh);
@@ -3702,7 +3894,7 @@ function deployTurret(pad, kind) {
 }
 
 function buyTurret() {
-  if (state.mode !== "tower" || !state.running || state.paused) return false;
+  if (!onTower() || !state.running || state.paused) return false;
   if (!lookingAtShop()) return false;
   const pad = turretPads.find((p) => !p.filled);
   if (!pad) {
@@ -3710,11 +3902,11 @@ function buyTurret() {
     return true;
   }
   const cost = nextTurretCost();
-  if (state.score < cost) {
+  if (!canAfford(cost)) {
     announce("Need " + cost + " score");
     return true;
   }
-  state.score -= cost;
+  spendScore(cost);
   hudCache = "";
   syncHud();
   deployTurret(pad, "toaster");
@@ -3723,18 +3915,18 @@ function buyTurret() {
 }
 
 function buyEspresso() {
-  if (state.mode !== "tower" || !state.running || state.paused) return false;
+  if (!onTower() || !state.running || state.paused) return false;
   if (!lookingAtEspressoShop()) return false;
   if (espressoOwned() >= ESPRESSO_COSTS.length) {
     announce("Max 2 Espresso Cannons");
     return true;
   }
   const cost = nextEspressoCost();
-  if (state.score < cost) {
+  if (!canAfford(cost)) {
     announce("Need " + cost + " score");
     return true;
   }
-  state.score -= cost;
+  spendScore(cost);
   state.espressoStock++;
   hudCache = "";
   syncHud();
@@ -3742,8 +3934,45 @@ function buyEspresso() {
   return true;
 }
 
+function crispyOwned() {
+  return turrets.some((t) => t.kind === "crispy");
+}
+
+function aimCrispyAt(aim, x, y, z) {
+  if (!aim) return;
+  aim.lookAt(x, y, z);
+  aim.rotateY(Math.PI);
+}
+
+function deployCrispy() {
+  const mesh = makeCrispyMesh(true);
+  mesh.position.set(CRISPY_MOUNT.x, CRISPY_MOUNT.y, CRISPY_MOUNT.z);
+  aimCrispyAt(mesh.userData.aim, CRISPY_MOUNT.x, 1.05, CRISPY_MOUNT.z - 18);
+  scene.add(mesh);
+  turrets.push({ mesh, pad: null, cool: 0.45, kind: "crispy" });
+}
+
+function buyCrispy() {
+  if (!onTower() || !state.running || state.paused) return false;
+  if (!lookingAtCrispyShop()) return false;
+  if (crispyOwned()) {
+    announce("Crispy Cannon already mounted");
+    return true;
+  }
+  if (!canAfford(CRISPY_COST)) {
+    announce("Need " + CRISPY_COST + " score");
+    return true;
+  }
+  spendScore(CRISPY_COST);
+  hudCache = "";
+  syncHud();
+  deployCrispy();
+  announce("Crispy Cannon mounted over the first tables");
+  return true;
+}
+
 function plantEspresso() {
-  if (state.mode !== "tower" || !state.running || state.paused) return false;
+  if (!onTower() || !state.running || state.paused) return false;
   if (state.espressoStock < 1) return false;
   const pad = lookingAtTablePad();
   if (!pad) return false;
@@ -3752,6 +3981,39 @@ function plantEspresso() {
   hudCache = "";
   syncHud();
   announce("Espresso Cannon on the table");
+  return true;
+}
+
+function buyPepper() {
+  if (!onTower() || !state.running || state.paused) return false;
+  if (!lookingAtPepperShop()) return false;
+  if (pepperOwned() >= PEPPER_COSTS.length) {
+    announce("Max 2 Pepper Mills");
+    return true;
+  }
+  const cost = nextPepperCost();
+  if (!canAfford(cost)) {
+    announce("Need " + cost + " score");
+    return true;
+  }
+  spendScore(cost);
+  state.pepperStock++;
+  hudCache = "";
+  syncHud();
+  announce("Pepper Mill ready · look at a table and press E");
+  return true;
+}
+
+function plantPepper() {
+  if (!onTower() || !state.running || state.paused) return false;
+  if (state.pepperStock < 1) return false;
+  const pad = lookingAtTablePad();
+  if (!pad) return false;
+  state.pepperStock--;
+  deployTurret(pad, "pepper");
+  hudCache = "";
+  syncHud();
+  announce("Pepper Mill on the table");
   return true;
 }
 
@@ -3773,36 +4035,36 @@ function fillAllGuns() {
 
 function buyAmmoRestock(fromShop) {
   if (!state.running || state.paused) return false;
-  if (state.mode !== "tower" && state.mode !== "raid") return false;
+  if (!onTower() && state.mode !== "raid") return false;
   if ((fromShop || state.mode === "raid") && !lookingAtAmmoShop()) return false;
   if (!gunsNeedAmmo()) {
     announce("Guns already full");
     return true;
   }
-  if (state.score < AMMO_COST) {
+  if (!canAfford(AMMO_COST)) {
     announce("Need " + AMMO_COST + " score");
     return true;
   }
-  state.score -= AMMO_COST;
+  spendScore(AMMO_COST);
   fillAllGuns();
   hudCache = "";
   syncHud();
-  announce("Full ammo restock (−" + AMMO_COST + ")");
+  announce(isSandbox() ? "Full ammo restock" : "Full ammo restock (−" + AMMO_COST + ")");
   return true;
 }
 
 function buyMine() {
-  if (state.mode !== "tower" || !state.running || state.paused) return false;
+  if (!onTower() || !state.running || state.paused) return false;
   if (!lookingAtMineShop()) return false;
   if (state.mines >= MINE_BAG) {
     announce("Mine bag full (" + MINE_BAG + ")");
     return true;
   }
-  if (state.score < MINE_COST) {
+  if (!canAfford(MINE_COST)) {
     announce("Need " + MINE_COST + " score");
     return true;
   }
-  state.score -= MINE_COST;
+  spendScore(MINE_COST);
   state.mines++;
   hudCache = "";
   syncHud();
@@ -3811,7 +4073,7 @@ function buyMine() {
 }
 
 function plantMine() {
-  if (state.mode !== "tower" || !state.running || state.paused) return false;
+  if (!onTower() || !state.running || state.paused) return false;
   if (state.mines < 1) return false;
   camera.getWorldDirection(forward);
   forward.y = 0;
@@ -3859,7 +4121,7 @@ function detonateMine(m) {
 }
 
 function tickMines(dt) {
-  if (state.mode !== "tower") return;
+  if (!onTower()) return;
   for (const m of mines) {
     if (m.dead) continue;
     m.arm = Math.max(0, m.arm - dt);
@@ -3878,7 +4140,7 @@ function tickMines(dt) {
 }
 
 function pressWaveButton() {
-  if (state.mode !== "tower" || !state.waveHold || !state.running || state.paused) return false;
+  if (!onTower() || !state.waveHold || !state.running || state.paused) return false;
   if (!lookingAtWaveBtn()) return false;
   if (state.pendingBoss) {
     state.pendingBoss = false;
@@ -3906,20 +4168,23 @@ function pressWaveButton() {
 
 function tryUse() {
   if (state.mode === "raid") return buyAmmoRestock(true);
-  return buyMine() || buyTurret() || buyEspresso() || buyAmmoRestock(true) || buyPunch() || plantEspresso() || pressWaveButton();
+  return buyMine() || buyTurret() || buyEspresso() || buyPepper() || buyCrispy() || buyAmmoRestock(true) || buyPunch() || plantEspresso() || plantPepper() || pressWaveButton();
 }
 
 function tickTurrets(dt) {
-  if (state.mode !== "tower") return;
+  if (!onTower()) return;
   for (const t of turrets) {
+    if (t.kind === "pepper" && t.mesh.userData.crank) t.mesh.userData.crank.rotation.y += dt * 9;
     t.cool -= dt;
     if (t.cool > 0) continue;
     const espresso = t.kind === "espresso";
-    const range = espresso ? ESPRESSO_RANGE : TURRET_RANGE;
+    const crispy = t.kind === "crispy";
+    const pepper = t.kind === "pepper";
+    const range = crispy ? CRISPY_RANGE : espresso ? ESPRESSO_RANGE : pepper ? PEPPER_RANGE : TURRET_RANGE;
     let best = null;
     let bestD = range * range;
     const ox = t.mesh.position.x;
-    const oy = t.mesh.position.y + (espresso ? 0.62 : 0.52);
+    const oy = crispy ? t.mesh.position.y - 0.55 : t.mesh.position.y + (espresso ? 0.62 : pepper ? 0.58 : 0.52);
     const oz = t.mesh.position.z;
     for (const e of enemies) {
       if (e.dead) continue;
@@ -3930,11 +4195,25 @@ function tickTurrets(dt) {
       if (d2 < bestD) { bestD = d2; best = e; }
     }
     if (!best) continue;
-    t.cool = espresso ? 0.38 : 0.7;
+    t.cool = crispy ? CRISPY_COOL : espresso ? 0.38 : pepper ? 0.28 : 0.7;
+    if (crispy) {
+      aimCrispyAt(
+        t.mesh.userData.aim,
+        best.mesh.position.x,
+        best.mesh.position.y + best.height * 0.45,
+        best.mesh.position.z
+      );
+    }
     const len = Math.sqrt(bestD) || 1;
-    const speed = espresso ? 26 : 18;
-    const mesh = espresso ? new THREE.Mesh(shotGeo, shotMat) : new THREE.Mesh(cakeGeo, cakeMat);
-    if (!espresso) mesh.rotation.x = Math.PI / 2;
+    const speed = crispy ? 15 : espresso ? 26 : pepper ? 22 : 18;
+    const mesh = crispy
+      ? new THREE.Mesh(crispyGeo, crispyMat)
+      : espresso
+        ? new THREE.Mesh(shotGeo, shotMat)
+        : pepper
+          ? new THREE.Mesh(pepperGeo, pepperMat)
+          : new THREE.Mesh(cakeGeo, cakeMat);
+    if (!espresso && !crispy && !pepper) mesh.rotation.x = Math.PI / 2;
     mesh.position.set(ox, oy, oz);
     scene.add(mesh);
     projectiles.push({
@@ -3944,10 +4223,10 @@ function tickTurrets(dt) {
         (best.mesh.position.y + best.height * 0.45 - oy) / len * speed,
         (best.mesh.position.z - oz) / len * speed
       ),
-      life: espresso ? 1.6 : 1.4,
-      dmg: espresso ? 24 : 12,
-      radius: espresso ? 0.2 : 0.22,
-      splash: espresso ? 1.1 : 0,
+      life: crispy ? 2.2 : espresso ? 1.6 : pepper ? 1.15 : 1.4,
+      dmg: crispy ? 88 : espresso ? 24 : pepper ? 14 : 12,
+      radius: crispy ? 0.28 : espresso ? 0.2 : pepper ? 0.12 : 0.22,
+      splash: crispy ? 2.2 : espresso ? 1.1 : 0,
       trailWait: 0,
     });
   }
@@ -3956,49 +4235,66 @@ function tickTurrets(dt) {
 function syncWaveBtn(dt) {
   if (useHint) {
     const live = state.running && !state.paused;
-    const show = state.mode === "tower" && live;
+    const show = onTower() && live;
     let text = "";
     if (live && lookingAtAmmoShop()) {
       text = !gunsNeedAmmo()
         ? "Guns already full"
-        : state.score < AMMO_COST
+        : !canAfford(AMMO_COST)
           ? "Need " + AMMO_COST + " score · Ammo restock"
-          : state.mode === "tower"
+          : onTower()
             ? "E / Click / T · Full ammo (" + AMMO_COST + ")"
             : "E / Click · Full ammo (" + AMMO_COST + ")";
     } else if (show && lookingAtMineShop()) {
       text = state.mines >= MINE_BAG
         ? "Mine bag full (" + MINE_BAG + ")"
-        : state.score < MINE_COST
+        : !canAfford(MINE_COST)
           ? "Need " + MINE_COST + " score · Landmine"
           : "E / Click · Buy Landmine (" + MINE_COST + ")";
     } else if (show && lookingAtShop()) {
       const cost = nextTurretCost();
       text = cost == null
         ? "Toaster Turrets sold out (2/2)"
-        : state.score < cost
+        : !canAfford(cost)
           ? "Need " + cost + " score · Toaster Turret"
           : "E / Click · Buy Toaster Turret (" + cost + ")";
     } else if (show && lookingAtEspressoShop()) {
       const cost = nextEspressoCost();
       text = cost == null
         ? "Espresso Cannons sold out (2/2)"
-        : state.score < cost
+        : !canAfford(cost)
           ? "Need " + cost + " score · Espresso Cannon"
           : "E / Click · Buy Espresso Cannon (" + cost + ")";
+    } else if (show && lookingAtPepperShop()) {
+      const cost = nextPepperCost();
+      text = cost == null
+        ? "Pepper Mills sold out (2/2)"
+        : !canAfford(cost)
+          ? "Need " + cost + " score · Pepper Mill"
+          : "E / Click · Buy Pepper Mill (" + cost + ")";
+    } else if (show && lookingAtCrispyShop()) {
+      text = crispyOwned()
+        ? "Crispy Cannon already mounted"
+        : !canAfford(CRISPY_COST)
+          ? "Need " + CRISPY_COST + " score · Crispy Cannon"
+          : "E / Click · Buy Crispy Cannon (" + CRISPY_COST + ")";
     } else if (show && lookingAtPunch()) {
       const w = currentWeapon();
       text = !w
         ? "Pack-a-Punch"
         : w.packed
           ? w.name + " is already packed"
-          : state.score < PAP_COST
+          : !canAfford(PAP_COST)
             ? "Need " + PAP_COST + " score · Pack " + w.name
             : "E / Click · Pack " + w.name + " (" + PAP_COST + ")";
     } else if (show && state.espressoStock > 0 && lookingAtTablePad()) {
       text = "E / Click · Place Espresso Cannon on table (" + state.espressoStock + ")";
+    } else if (show && state.pepperStock > 0 && lookingAtTablePad()) {
+      text = "E / Click · Place Pepper Mill on table (" + state.pepperStock + ")";
     } else if (show && state.espressoStock > 0) {
       text = "Look at a table · E to plant Espresso Cannon (" + state.espressoStock + ")";
+    } else if (show && state.pepperStock > 0) {
+      text = "Look at a table · E to plant Pepper Mill (" + state.pepperStock + ")";
     } else if (show && state.waveHold) {
       if (lookingAtWaveBtn()) {
         text = state.pendingBoss ? "E / Click · ORDER UP · Boss Fight" : "E / Click · ORDER UP";
@@ -4176,7 +4472,7 @@ function finishReload() {
 }
 
 function hurtBase(n) {
-  if (state.mode !== "tower") return;
+  if (!onTower()) return;
   state.baseHp = Math.max(0, state.baseHp - n);
   hitFlash.style.background = "rgba(196,60,44,0.22)";
   setTimeout(() => { hitFlash.style.background = "rgba(196,60,44,0)"; }, 80);
@@ -4202,8 +4498,8 @@ function gameOver() {
   overlay.style.display = "flex";
   menuCard.style.display = "none";
   overCard.style.display = "block";
-  overText.textContent = (state.mode === "tower" ? "The kitchen fell." : "The leftovers won.") +
-    " Score " + state.score + " · " + (state.bossFight ? "Boss Fight" : "Wave " + state.wave) + " · Kills " + state.kills;
+  overText.textContent = (isSandbox() ? "Sandbox over." : onTower() ? "The kitchen fell." : "The leftovers won.") +
+    " Score " + (isSandbox() ? "∞" : state.score) + " · " + (state.bossFight ? "Boss Fight" : "Wave " + state.wave) + " · Kills " + state.kills;
 }
 
 function clearWorldActors() {
@@ -4225,7 +4521,7 @@ function clearWorldActors() {
 }
 
 function resetGame() {
-  player.position.set(0, 0, state.mode === "tower" ? 2.2 : 8);
+  player.position.set(0, 0, onTower() ? 2.2 : 8);
   state.yaw = 0;
   state.pitch = 0;
   state.vy = 0;
@@ -4242,6 +4538,7 @@ function resetGame() {
   state.waveHold = false;
   state.turretStock = 0;
   state.espressoStock = 0;
+  state.pepperStock = 0;
   state.mines = 0;
   state.bossFight = false;
   state.pendingBoss = false;
@@ -4256,7 +4553,7 @@ function resetGame() {
   clearWorldActors();
   applyLook();
   hudCache = "";
-  if (state.mode === "tower") {
+  if (onTower()) {
     state.waveHold = true;
     announce("Hit ORDER UP on the wall when you're ready");
   } else {
@@ -4399,12 +4696,12 @@ function tickActors(dt) {
 
     const reach = RADIUS + e.radius + 0.06;
     const toKitchen = e.mesh.position.z;
-    const atKitchen = state.mode === "tower" && toKitchen >= KITCHEN_FRONT && Math.abs(e.mesh.position.x) < HALL_HALF + 0.8;
+    const atKitchen = onTower() && toKitchen >= KITCHEN_FRONT && Math.abs(e.mesh.position.x) < HALL_HALF + 0.8;
     if (atKitchen && e.bite <= 0) {
       hurtBase(e.baseDmg);
       e.bite = 0.85;
     }
-    if (e.ranged && state.mode === "raid") {
+    if (e.ranged && state.mode !== "tower") {
       e.shootWait = Math.max(0, (e.shootWait || 0) - dt);
       const sameLevel = Math.abs(ppos.y - e.floorY) < 1.15;
       if (sameLevel && flat > 2.2 && flat <= LEFTOVER_SHOT_RANGE && e.shootWait <= 0 && walkClear(
@@ -4531,7 +4828,7 @@ function tickActors(dt) {
     }
   }
 
-  if (state.mode === "tower") {
+  if (onTower()) {
     if (state.running && state.spawnLeft === 0 && enemies.length === 0 && !state.waveHold) {
       if (state.bossFight) {
         state.bossFight = false;
@@ -4638,7 +4935,7 @@ function syncHud() {
   hudCache = key;
   hudHp.textContent = Math.ceil(state.hp);
   hudBar.style.width = state.hp + "%";
-  hudScore.textContent = state.score;
+  hudScore.textContent = isSandbox() ? "∞" : state.score;
   hudKills.textContent = state.kills;
   hudWave.textContent = state.bossFight ? "Boss Fight" : state.wave;
   hudWave.classList.toggle("boss-round", state.bossFight);
@@ -4655,7 +4952,7 @@ function syncHud() {
       if (hudBossLabel) hudBossLabel.textContent = "Boss Fight · " + boss.name;
     }
   }
-  if (state.mode === "tower") {
+  if (onTower()) {
     hudBase.textContent = Math.ceil(state.baseHp);
     hudBaseBar.style.width = (state.baseHp / 10) + "%";
     hudMines.textContent = state.mines;
@@ -4686,7 +4983,7 @@ function frame(t) {
 }
 
 function start() {
-  if (picked.size !== KIT) return;
+  if (!isSandbox() && picked.size !== KIT) return;
   if (state.builtMode !== state.mode || state.builtLook !== state.look) rebuildWorld();
   resetGame();
   overlay.style.display = "none";
@@ -4695,11 +4992,13 @@ function start() {
   state.paused = false;
   state.mouseDown = false;
   renderer.domElement.requestPointerLock().catch(() => {});
+  if (isSandbox()) announce("Sandbox — unlimited score · all guns");
 }
 
 startBtn.addEventListener("click", start);
 document.getElementById("modeRaid").addEventListener("click", () => setMode("raid"));
 document.getElementById("modeTower").addEventListener("click", () => setMode("tower"));
+document.getElementById("modeSandbox").addEventListener("click", () => setMode("sandbox"));
 document.getElementById("lookLight").addEventListener("click", () => setLook("light"));
 document.getElementById("lookDark").addEventListener("click", () => setLook("dark"));
 setLook(state.look);

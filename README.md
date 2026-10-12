@@ -18,7 +18,8 @@ Agent Scramble is a wave shooter set in diner country. You fight Hangry Eggs, Ro
 Two modes:
 
 - **Lot Raid** — hunt leftovers across the diner block, kitchen deck, and Salsa Cantina. Stomach HP is yours. Next wave starts 10 seconds after the last leftover dies. Full ammo restock is on the diner’s third-floor deck (**200** score, look and press **E**). Hot Sauce Squirts shoot here. Hold **F** for your tray.
-- **Tower Kitchen** — hold a diner hallway. The kitchen has **1000 HP**. Leftovers chew it when they reach the counter. Hit **ORDER UP** to start leftover waves and boss fights (every 5th leftover wave). In the Upgrades room: **Toaster Turrets** (500, then 1500), **Espresso Cannons** (2000, then 4000, plant on tables with **E**), **Landmines** (200, **G** to plant), **Ammo Restock** (200, **T** anytime), and **Pack-a-Punch** (6000 per gun, irreversible).
+- **Tower Kitchen** — hold a diner hallway. The kitchen has **1000 HP**. Leftovers chew it when they reach the counter. Hit **ORDER UP** to start leftover waves and boss fights (every 5th leftover wave). In the Upgrades room: **Toaster Turrets** (500, then 1500), **Espresso Cannons** (2000, then 4000, plant on tables with **E**), **Pepper Mills** (2500, then 3500, plant on tables with **E**), **Crispy Cannon** (8000, mounts once on the ceiling over the first tables), **Landmines** (200, **G** to plant), **Ammo Restock** (200, **T** anytime), and **Pack-a-Punch** (6000 per gun, irreversible, each gun its own packed color).
+- **Sandbox** — Tower Kitchen with **unlimited score**, all **7 guns**, and Hot Sauce Squirts. Buy every shop item. ORDER UP still starts waves so you can test turrets and bosses.
 
 ## Controls
 
@@ -31,7 +32,7 @@ Two modes:
 | 1–3 / scroll | Swap the three guns in your Loadout |
 | Shift | Aim (Marksman 2× scope, Link Launcher 1.5× irons) |
 | R | Reload |
-| E | ORDER UP / buy from the shop / plant Espresso Cannon (Tower Kitchen) |
+| E | ORDER UP / buy from the shop / plant Espresso Cannon or Pepper Mill (Tower Kitchen) |
 | F | Hold the orange tray (50 HP, blocks shots and melee you face; refills after each round) |
 | G | Plant a landmine (Tower Kitchen) |
 | T | Full ammo restock for 200 score (Tower Kitchen, anytime) |
@@ -53,7 +54,7 @@ Take three of these into a run.
 
 ## Waves
 
-Lot Raid wave 1 starts with 8 leftovers. Each later wave in a 5-round cycle is **+50%** of the last pack. Every 5th wave they get a **20% health buff** (it stacks). After a buff, pack size resets to 8. Tower Kitchen uses the same cycle at **half** the leftover count.
+Lot Raid wave 1 starts with 8 leftovers. Each later wave in a 5-round cycle is **+50%** of the last pack. Every 5th wave they get a **20% health buff** (it stacks). After a buff, pack size resets to 8. Tower Kitchen uses the same cycle at **half** the leftover count. Kill score ticks up **5%** each round, and every 5th wave is **1.2×** the last.
 
 ## Run it locally
 
